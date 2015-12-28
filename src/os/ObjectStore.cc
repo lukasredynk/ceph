@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 /*
  * Ceph - scalable distributed file system
@@ -7,9 +7,9 @@
  *
  * This is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2.1, as published by the Free Software 
+ * License version 2.1, as published by the Free Software
  * Foundation.  See file COPYING.
- * 
+ *
  */
 #include <ctype.h>
 #include <sstream>
@@ -24,6 +24,10 @@
 #include "bluestore/BlueStore.h"
 #endif
 #include "kstore/KStore.h"
+
+#if defined(HAVE_PMSTORE)
+#include "PMStore.h"
+#endif
 
 void decode_str_str_map_to_bl(bufferlist::iterator& p,
 			      bufferlist *out)
@@ -82,6 +86,11 @@ ObjectStore *ObjectStore::create(CephContext *cct,
       cct->check_experimental_feature_enabled("kstore")) {
     return new KStore(cct, data);
   }
+#if defined(HAVE_PMSTORE)
+  if (type == "pmstore") {
+    return new PMStore(cct, data);
+  }
+#endif
   return NULL;
 }
 

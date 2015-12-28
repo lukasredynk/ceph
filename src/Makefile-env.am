@@ -282,6 +282,11 @@ endif # WITH_SLIBROCKSDB
 LIBKV += -lz -lleveldb -lsnappy
 LIBOS += $(LIBOS_TYPES) $(LIBKV) $(LIBFUSE_LIBS)
 
+if WITH_PMSTORE
+LIBOS += pmbackend/build/libpmbackend.a
+EXTRALIBS += -luuid
+endif
+
 LIBMON += $(LIBMON_TYPES)
 
 # Use this for binaries requiring libglobal

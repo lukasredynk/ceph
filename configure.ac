@@ -239,7 +239,7 @@ if test x"$YASM_CHECK" = x"yes"; then
            echo 'we are not x32'
            AC_DEFINE([HAVE_GOOD_YASM_ELF64], [1], [we have a recent yasm and are x86_64])
            with_good_yasm=yes
-  
+
            if yasm -f elf64 -i src/erasure-code/isa/isa-l/include/ src/erasure-code/isa/isa-l/erasure_code/gf_vect_dot_prod_avx2.asm.s -o /dev/null 2> /dev/null ; then
               echo 'yasm can also build the isa-l stuff'
               AC_DEFINE([HAVE_BETTER_YASM_ELF64], [1], [yasm can also build the isa-l])
@@ -510,7 +510,7 @@ AM_CONDITIONAL(WITH_RADOSGW, test "$RADOSGW" = "1")
 
 AS_IF([test "$RADOSGW" = "1"], [AC_DEFINE([WITH_RADOSGW], [1], [define if radosgw enabled])])
 
-AS_IF([test "$RADOSGW" = "1"], 
+AS_IF([test "$RADOSGW" = "1"],
               [AC_CHECK_LIB([curl], [curl_multi_wait],
                             AC_DEFINE([HAVE_CURL_MULTI_WAIT], [1], [Define if have curl_multi_wait()]))
               ])
@@ -652,7 +652,7 @@ if test "x$enable_cephfs_java" = "xyes"; then
        ])
 
         # cephfs_java_test only makes sense if java is already turned on
-	# setup CLASSPATH for Debian default junit4.jar package 
+	# setup CLASSPATH for Debian default junit4.jar package
         #
         # Configuring --with-debug and --enable-cephfs-java will throw an error if
         # JUnit4 cannot be found. While currently this works for users who have
@@ -842,6 +842,14 @@ AS_IF([test "x$with_librocksdb_static" = "xyes"], [
 AM_CONDITIONAL(HAVE_BZLIB, [test "x$have_bzlib" = "xyes"])
 AM_CONDITIONAL(HAVE_LZ4, [test "x$have_lz4" = "xyes"])
 
+AC_ARG_WITH([pmstore],
+            [AS_HELP_STRING([--with-pmstore],[build PMStore support])],
+            [],
+            [with_pmstore=no])
+AS_IF([test "x$with_pmstore" = "xyes"],
+      [AC_DEFINE([HAVE_PMSTORE], [1], [Defined if you have PMStore enabled])])
+AM_CONDITIONAL(WITH_PMSTORE, [ test "x$with_pmstore" = "xyes" ])
+
 # needs libcurl and libxml2
 if test "x$with_rest_bench" = xyes && test "x$with_system_libs3" = xno; then
    AC_CHECK_LIB([curl], [curl_easy_init], [], AC_MSG_ERROR([libcurl not found]))
@@ -856,7 +864,7 @@ AC_ARG_WITH([libaio],
 AS_IF([test "x$with_libaio" != xno],
 	    [AC_CHECK_LIB([aio], [io_submit], [true], AC_MSG_FAILURE([libaio not found]))])
 AS_IF([test "x$with_libaio" != xno],
-	    [AC_CHECK_HEADER([libaio.h])])	
+	    [AC_CHECK_HEADER([libaio.h])])
 AS_IF([test "$with_libaio" = "yes"],
 	    [AC_DEFINE([HAVE_LIBAIO], [1], [Defined if you don't have atomic_ops])])
 AM_CONDITIONAL(WITH_LIBAIO, [ test "$with_libaio" = "yes" ])

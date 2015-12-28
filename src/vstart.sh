@@ -41,8 +41,8 @@ if [ -e CMakeCache.txt ]; then
   done
 else
     mkdir -p .libs/compressor
-    for f in `ls -d compressor/*/`; 
-    do 
+    for f in `ls -d compressor/*/`;
+    do
         cp .libs/libceph_`basename $f`.so* .libs/compressor/;
     done
 fi
@@ -106,6 +106,7 @@ cephx=1 #turn cephx on by default
 cache=""
 memstore=0
 bluestore=0
+pmstore=0
 
 MON_ADDR=""
 
@@ -139,6 +140,7 @@ usage=$usage"\t--rgw_port specify ceph rgw http listen port\n"
 usage=$usage"\t--bluestore use bluestore as the osd objectstore backend\n"
 usage=$usage"\t--memstore use memstore as the osd objectstore backend\n"
 usage=$usage"\t--cache <pool>: enable cache tiering on pool\n"
+usage=$usage"\t--pmstore : start with pmstore backend\n"
 
 usage_exit() {
 	printf "$usage"
@@ -244,7 +246,10 @@ case $1 in
 	    ;;
     --bluestore )
 	    bluestore=1
-	    ;;
+            ;;
+    --pmstore )
+            pmstore=1
+            ;;
     --hitset )
 	    hitset="$hitset $2 $3"
 	    shift
@@ -349,6 +354,12 @@ fi
 if [ "$bluestore" -eq 1 ]; then
     COSDMEMSTORE='
 	osd objectstore = bluestore'
+fi
+if [ "$pmstore" -eq 1 ]; then
+    COSDMEMSTORE='
+	osd objectstore = pmstore
+    pmstore tx slots = 32
+    pmstore sync = thsync'
 fi
 
 # lockdep everywhere?
@@ -663,12 +674,12 @@ EOF
         echo $cmd
         $cmd
 	fi
-	
+
 	run 'mds' $CEPH_BIN/ceph-mds -i $name $ARGS $CMDS_ARGS
 	if [ "$standby" -eq 1 ]; then
 	    run 'mds' $CEPH_BIN/ceph-mds -i ${name}s $ARGS $CMDS_ARGS
 	fi
-	
+
 	mds=$(($mds + 1))
 	[ $mds -eq $CEPH_NUM_MDS ] && break
 

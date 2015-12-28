@@ -26,3 +26,6 @@
 [submodule "src/spdk"]
 	path = src/spdk
 	url = https://github.com/ceph/spdk.git
+[submodule "src/pmbackend"]
+	path = src/pmbackend
+	url = https://github.com/intelsdi-x/pmbackend.git

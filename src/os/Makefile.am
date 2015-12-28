@@ -152,4 +152,13 @@ ceph_bluefs_tool_LDADD = $(LIBOS) $(CEPH_GLOBAL)
 bin_PROGRAMS += ceph-bluefs-tool
 endif
 
+if WITH_PMSTORE
+pmbackend/build/libpmbackend.a:
+	cd pmbackend && mkdir build && cd build && cmake .. && make
+libos_a_SOURCES += os/PMStore.cc
+libos_a_CXXFLAGS += -I pmbackend/include
+libos_a_LIBADD += pmbackend/build/libpmbackend.a
+noinst_HEADERS += os/PMStore.h
+endif
+
 endif # ENABLE_SERVER
