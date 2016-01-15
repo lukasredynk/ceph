@@ -155,10 +155,10 @@ endif
 if WITH_PMSTORE
 pmbackend/build/libpmbackend.a:
 	cd pmbackend && mkdir build && cd build && cmake .. && make
-libos_a_SOURCES += os/PMStore.cc
+libos_a_SOURCES += os/pmstore/PMStore.cc
 libos_a_CXXFLAGS += -I pmbackend/include
 libos_a_LIBADD += pmbackend/build/libpmbackend.a
-noinst_HEADERS += os/PMStore.h
+noinst_HEADERS += os/pmstore/PMStore.h
 endif
 
 endif # ENABLE_SERVER

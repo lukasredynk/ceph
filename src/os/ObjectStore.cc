@@ -26,7 +26,7 @@
 #include "kstore/KStore.h"
 
 #if defined(HAVE_PMSTORE)
-#include "PMStore.h"
+#include "pmstore/PMStore.h"
 #endif
 
 void decode_str_str_map_to_bl(bufferlist::iterator& p,

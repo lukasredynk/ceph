@@ -27,7 +27,7 @@
 #include "common/RefCountedObj.h"
 #include "common/Finisher.h"
 #include "common/RWLock.h"
-#include "ObjectStore.h"
+#include "os/ObjectStore.h"
 
 //#ifdef WITH_LTTNG
 //#include "tracing/pmstore.h"
