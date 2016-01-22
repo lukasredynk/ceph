@@ -51,20 +51,22 @@ bool operator>(const PMStore::CollectionRef& l,
 }
 
 int PMStore::Object::write(pmb_handle* store, coll_t& cid, const ghobject_t& oid,
-    const uint64_t tx_id, const uint32_t data_blocksize, void* buf, size_t offset, size_t len) {
-
+    const uint64_t tx_id, const uint32_t data_blocksize, void* buf, size_t offset, size_t len)
+{
   size_t old_size = used_blocks;
   size_t new_size = old_size;
   size_t start, end;
   start = offset / data_blocksize;
-  if (offset + len > 0)
+  if (offset + len > 0) {
     end = (offset + len - 1) / data_blocksize;
-  else
+  } else {
     end = 0;
+  }
 
   if (data.size() <= end) {
-    for(size_t i = data.size(); i <= end; i++)
+    for (size_t i = data.size(); i <= end; i++) {
       data.push_back(0);
+    }
   }
 
   uint64_t result;
@@ -102,20 +104,23 @@ int PMStore::Object::write(pmb_handle* store, coll_t& cid, const ghobject_t& oid
 
     if (result != PMB_OK) {
       dout(20) << __func__ << " result: " << result << dendl;
-      if (result == PMB_ENOSPC)
+      if (result == PMB_ENOSPC) {
         return -ENOSPC;
-      else
+      } else {
         return -EIO;
+      }
     } else {
       data[i] = kvp.obj_id;
     }
     remining -= kvp.val_len;
-    if (remining > 0)
+    if (remining > 0) {
       buf += kvp.val_len;
+    }
   }
 
-  if(data_len < (offset + len))
+  if(data_len < (offset + len)) {
     data_len = offset + len;
+  }
 
   used_blocks = new_size;
 
@@ -182,8 +187,9 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     for(uint64_t i = data.size(); i > requested_block; --i) {
       dout(0) << __func__ << " truncating: " << data[i] << dendl;
       result = pmb_tdel(store, tx_id, data[i]);
-      if (result != PMB_OK)
+      if (result != PMB_OK) {
         goto err;
+      }
       data[i] = 0;
       --used_blocks;
     }
@@ -205,8 +211,9 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     kvp.val_len = off;
     kvp.val = bl.c_str();
     result = pmb_tdel(store, tx_id, kvp.obj_id);
-    if (result != PMB_OK)
+    if (result != PMB_OK) {
       goto err;
+    }
     kvp.obj_id = 0;
     result = pmb_tput(store, tx_id, &kvp);
     if (result != PMB_OK) {
@@ -226,8 +233,8 @@ err:
 }
 
 int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
-    const ghobject_t& oid, const uint64_t tx_id, bufferlist& omap_header_bl) {
-
+    const ghobject_t& oid, const uint64_t tx_id, bufferlist& omap_header_bl)
+{
   pmb_pair kvp = {};
   bufferlist ohkey;
   encode_key_meta(ohkey, cid, oid, 'h');
@@ -243,10 +250,11 @@ int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
   if (result != PMB_OK) {
     dout(0) << __func__ << " error writing omap header: " << result << \
       " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
-    if (result == PMB_ENOSPC)
+    if (result == PMB_ENOSPC) {
       return -ENOSPC;
-    else
+    } else {
       return -EIO;
+    }
   } else {
     omap_header = kvp.obj_id;
   }
@@ -547,8 +555,9 @@ int PMStore::Object::change_key(pmb_handle* store, const coll_t& newcid,
 
   // rewrite blocks
   for(size_t i = 0; i < data.size(); i++) {
-    if (data[i] == 0)
+    if (data[i] == 0) {
       continue;
+    }
 
     pmb_get(store, data[i], &kvp);
     bufferlist write_key;
@@ -559,10 +568,11 @@ int PMStore::Object::change_key(pmb_handle* store, const coll_t& newcid,
     result = pmb_tput(store, tx_id, &kvp);
 
     if (result != PMB_OK) {
-      if (result == PMB_ENOSPC)
+      if (result == PMB_ENOSPC) {
         return -ENOSPC;
-      else
+      } else {
         return -EIO;
+      }
     } else {
       data[i] = kvp.obj_id;
     }
@@ -658,6 +668,8 @@ int PMStore::_save()
 
 void PMStore::dump_all()
 {
+  dout(10) << __func__ << dendl;
+
   Formatter *f = Formatter::create("json-pretty");
   f->open_object_section("store");
   dump(f);
@@ -670,6 +682,8 @@ void PMStore::dump_all()
 
 void PMStore::dump(Formatter *f)
 {
+  dout(10) << __func__ << dendl;
+
   f->open_array_section("collections");
   for (ceph::unordered_map<coll_t,CollectionRef>::iterator p = coll_map.begin();
        p != coll_map.end();
@@ -683,8 +697,9 @@ void PMStore::dump(Formatter *f)
 	 ++q) {
       f->open_object_section("object");
       f->dump_string("name", stringify(q->first));
-      if (q->second)
-	q->second->dump(f);
+      if (q->second) {
+        q->second->dump(f);
+      }
       f->close_section();
     }
     f->close_section();
@@ -728,8 +743,9 @@ int PMStore::_load()
 
   fn = path + "/sharded";
   struct stat st;
-  if (::stat(fn.c_str(), &st) == 0)
+  if (::stat(fn.c_str(), &st) == 0) {
     set_allow_sharded_objects();
+  }
 
   dump_all();
 
@@ -809,7 +825,6 @@ int PMStore::_load()
   pmb_iter_close(iter);
 
   dout(0) << __func__ << " finished" << dendl;
-
 
   return 0;
 }
@@ -933,12 +948,16 @@ void PMStore::_add_meta_object(pmb_pair *kvp)
 
 void PMStore::set_fsid(uuid_d u)
 {
+  dout(10) << __func__ << dendl;
+
   int r = write_meta("fs_fsid", stringify(u));
   assert(r >= 0);
 }
 
 uuid_d PMStore::get_fsid()
 {
+  dout(10) << __func__ << dendl;
+
   string fsid_str;
   int r = read_meta("fs_fsid", &fsid_str);
   assert(r >= 0);
@@ -950,6 +969,8 @@ uuid_d PMStore::get_fsid()
 
 int PMStore::mkfs()
 {
+  dout(10) << __func__ << dendl;
+
   string fsid_str;
   int r = read_meta("fs_fsid", &fsid_str);
   if (r == -ENOENT) {
@@ -980,6 +1001,7 @@ int PMStore::mkfs()
 int PMStore::statfs(struct statfs *st)
 {
   dout(10) << __func__ << dendl;
+
   st->f_bsize = data_blocksize;
   st->f_bfree = st->f_bavail = pmb_nfree(store, PMB_DATA);
   st->f_blocks = pmb_ntotal(store, PMB_DATA);
@@ -1009,6 +1031,7 @@ PMStore::CollectionRef PMStore::get_collection(coll_t cid)
 bool PMStore::exists(coll_t cid, const ghobject_t& oid)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return false;
@@ -1027,6 +1050,7 @@ int PMStore::stat(
     bool allow_eio)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -1054,6 +1078,7 @@ int PMStore::read(
 {
   dout(10) << __func__ << " " << cid << " " << oid << " "
 	   << offset << "~" << len << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c){
     return -ENOENT;
@@ -1069,10 +1094,11 @@ int PMStore::read(
     return 0;
   }
   size_t l = len;
-  if (l == 0)  // note: len == 0 means read the entire object
+  if (l == 0) { // note: len == 0 means read the entire object
     l = o->data_len;
-  else if (offset + l > o->data_len)
+  } else if (offset + l > o->data_len) {
     l = o->data_len - offset;
+  }
   bl.clear();
 
   uint64_t start, end, block_offset, remining;
@@ -1081,7 +1107,7 @@ int PMStore::read(
   block_offset = start * data_blocksize;
   remining = l;
 
-  dout(0) << __func__ << " " << oid << " data_len: " << o->data_len << " offset: " << offset <<
+  dout(10) << __func__ << " " << oid << " data_len: " << o->data_len << " offset: " << offset <<
     " block_offset: " << block_offset <<  " remining: " << remining <<
     " start: " << start << " end: " << end << dendl;
 
@@ -1170,6 +1196,7 @@ int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
 {
   dout(10) << __func__ << " " << cid << " " << oid << " " << offset << "~"
 	   << len << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1187,8 +1214,9 @@ int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
     return 0;
   }
   size_t l = len;
-  if (offset + l > o->data_len)
+  if (offset + l > o->data_len) {
     l = o->data.size() * data_blocksize - offset;
+  }
   m[offset] = l;
   ::encode(m, bl);
   return 0;
@@ -1198,6 +1226,7 @@ int PMStore::getattr(coll_t cid, const ghobject_t& oid,
 		      const char *name, bufferptr& value)
 {
   dout(10) << __func__ << " " << cid << " " << oid << " " << name << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1238,6 +1267,7 @@ int PMStore::getattrs(coll_t cid, const ghobject_t& oid,
 		       map<string,bufferptr>& aset)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1267,6 +1297,7 @@ int PMStore::getattrs(coll_t cid, const ghobject_t& oid,
 int PMStore::list_collections(vector<coll_t>& ls)
 {
   dout(10) << __func__ << dendl;
+
   RWLock::RLocker l(coll_lock);
   for (ceph::unordered_map<coll_t,CollectionRef>::iterator p = coll_map.begin();
        p != coll_map.end();
@@ -1279,6 +1310,7 @@ int PMStore::list_collections(vector<coll_t>& ls)
 bool PMStore::collection_exists(coll_t cid)
 {
   dout(10) << __func__ << " " << cid << dendl;
+
   RWLock::RLocker l(coll_lock);
   bool ret = coll_map.count(cid);
   return ret;
@@ -1287,6 +1319,7 @@ bool PMStore::collection_exists(coll_t cid)
 bool PMStore::collection_empty(coll_t cid)
 {
   dout(10) << __func__ << " " << cid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1300,8 +1333,11 @@ int PMStore::collection_list(coll_t cid, ghobject_t start, ghobject_t end,
                               bool sort_bitwise, int max,
                               vector<ghobject_t> *ls, ghobject_t *next)
 {
-  if (!sort_bitwise)
+  dout(10) << __func__ << " " << cid << dendl;
+
+  if (!sort_bitwise) {
     return -EOPNOTSUPP;
+  }
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1316,23 +1352,24 @@ int PMStore::collection_list(coll_t cid, ghobject_t start, ghobject_t end,
     ++p;
   }
   if (next != NULL) {
-    if (p == c->object_map.end())
+    if (p == c->object_map.end()) {
       *next = ghobject_t::get_max();
-    else
+    } else {
       *next = p->first;
+    }
   }
 
   return 0;
 }
 
 int PMStore::omap_get(
-    coll_t cid,                ///< [in] Collection containing oid
-    const ghobject_t &oid,   ///< [in] Object containing omap
-    bufferlist *header,      ///< [out] omap header
-    map<string, bufferlist> *out /// < [out] Key to value map
-    )
+    coll_t cid,                   ///< [in] Collection containing oid
+    const ghobject_t &oid,        ///< [in] Object containing omap
+    bufferlist *header,           ///< [out] omap header
+    map<string, bufferlist> *out) ///< [out] Key to value map
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1375,12 +1412,13 @@ int PMStore::omap_get(
 }
 
 int PMStore::omap_get_header(
-    coll_t cid,                ///< [in] Collection containing oid
-    const ghobject_t &oid,   ///< [in] Object containing omap
-    bufferlist *header,      ///< [out] omap header
-    bool allow_eio) ///< [in] don't assert on eio
+    coll_t cid,               ///< [in] Collection containing oid
+    const ghobject_t &oid,    ///< [in] Object containing omap
+    bufferlist *header,       ///< [out] omap header
+    bool allow_eio)           ///< [in] don't assert on eio
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1408,12 +1446,12 @@ int PMStore::omap_get_header(
 }
 
 int PMStore::omap_get_keys(
-    coll_t cid,              ///< [in] Collection containing oid
-    const ghobject_t &oid, ///< [in] Object containing omap
-    set<string> *keys      ///< [out] Keys defined on oid
-    )
+    coll_t cid,             ///< [in] Collection containing oid
+    const ghobject_t &oid,  ///< [in] Object containing omap
+    set<string> *keys)      ///< [out] Keys defined on oid
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1425,8 +1463,9 @@ int PMStore::omap_get_keys(
   }
 
   for (set<string>::iterator p = o->omap_keys.begin();
-       p != o->omap_keys.end(); ++p)
+       p != o->omap_keys.end(); ++p) {
     keys->insert(*p);
+  }
 
   return 0;
 }
@@ -1439,6 +1478,7 @@ int PMStore::omap_get_values(
     )
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1468,6 +1508,7 @@ int PMStore::omap_check_keys(
     )
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -1482,8 +1523,9 @@ int PMStore::omap_check_keys(
        p != keys.end();
        ++p) {
     set<string>::iterator q = o->omap_keys.find(*p);
-    if (q != o->omap_keys.end())
+    if (q != o->omap_keys.end()) {
       out->insert(*p);
+    }
   }
   return 0;
 }
@@ -1492,13 +1534,16 @@ ObjectMap::ObjectMapIterator PMStore::get_omap_iterator(coll_t cid,
 							 const ghobject_t& oid)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
-  if (!c)
+  if (!c) {
     return ObjectMap::ObjectMapIterator();
+  }
 
   ObjectRef o = c->get_object(oid);
-  if (!o)
+  if (!o) {
     return ObjectMap::ObjectMapIterator();
+  }
   return ObjectMap::ObjectMapIterator(new OmapIteratorImpl(store, c, o));
 }
 
@@ -1511,8 +1556,9 @@ int PMStore::queue_transactions(Sequencer *osr,
 				 TrackedOpRef op,
 				 ThreadPool::TPHandle *handle)
 {
+  dout(10) << __func__ << dendl;
 
-  // because memstore operations are synchronous, we can implement the
+  // because pmstore operations are synchronous, we can implement the
   // Sequencer with a mutex. this guarantees ordering on a given sequencer,
   // while allowing operations on different sequencers to happen in parallel
   struct OpSequencer : public Sequencer_impl {
@@ -1547,8 +1593,9 @@ int PMStore::queue_transactions(Sequencer *osr,
 
   for (list<Transaction*>::iterator p = tls.begin(); p != tls.end(); ++p) {
     // poke the TPHandle heartbeat just to exercise that code path
-    if (handle)
+    if (handle) {
       handle->reset_tp_timeout();
+    }
 
     if(_do_transaction(**p, tx_id) < 0) {
       pmb_tx_abort(store, tx_id);
@@ -1561,12 +1608,15 @@ int PMStore::queue_transactions(Sequencer *osr,
   Context *on_apply = NULL, *on_apply_sync = NULL, *on_commit = NULL;
   ObjectStore::Transaction::collect_contexts(tls, &on_apply, &on_commit,
 					     &on_apply_sync);
-  if (on_apply_sync)
+  if (on_apply_sync) {
     on_apply_sync->complete(0);
-  if (on_apply)
+  }
+  if (on_apply) {
     finisher.queue(on_apply);
-  if (on_commit)
+  }
+  if (on_commit) {
     finisher.queue(on_commit);
+  }
   return 0;
 }
 
@@ -1575,10 +1625,6 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
   dout(10) << __func__ << dendl;
   Transaction::iterator i = t.begin();
   int pos = 0;
-
-//#ifdef WITH_LTTNG
-//  const char *osr_name =  "<NULL>";
-//#endif
 
   while (i.have_op()) {
     Transaction::Op *op = i.decode_op();
@@ -1591,9 +1637,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
       {
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
-	      tracepoint(objectstore, touch_enter, osr_name);
+        tracepoint(objectstore, touch_enter, osr_name);
         r = _touch(tx_id, cid, oid);
-	      tracepoint(objectstore, touch_exit, r);
+        tracepoint(objectstore, touch_exit, r);
       }
       break;
 
@@ -1603,12 +1649,12 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         uint64_t off = op->off;
         uint64_t len = op->len;
-	      uint32_t fadvise_flags = i.get_fadvise_flags();
+        uint32_t fadvise_flags = i.get_fadvise_flags();
         bufferlist bl;
         i.decode_bl(bl);
-	      tracepoint(objectstore, write_enter, osr_name, off, len);
+        tracepoint(objectstore, write_enter, osr_name, off, len);
         r = _write(tx_id, cid, oid, off, len, bl, fadvise_flags);
-	      tracepoint(objectstore, write_exit, r);
+        tracepoint(objectstore, write_exit, r);
       }
       break;
 
@@ -1618,9 +1664,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         uint64_t off = op->off;
         uint64_t len = op->len;
-	      tracepoint(objectstore, zero_enter, osr_name, off, len);
+        tracepoint(objectstore, zero_enter, osr_name, off, len);
         r = _zero(tx_id, cid, oid, off, len);
-	      tracepoint(objectstore, zero_exit, r);
+        tracepoint(objectstore, zero_exit, r);
       }
       break;
 
@@ -1635,9 +1681,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
         uint64_t off = op->off;
-	      tracepoint(objectstore, truncate_enter, osr_name, off);
+        tracepoint(objectstore, truncate_enter, osr_name, off);
         r = _truncate(tx_id, cid, oid, off);
-	      tracepoint(objectstore, truncate_exit, r);
+	tracepoint(objectstore, truncate_exit, r);
       }
       break;
 
@@ -1645,9 +1691,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
       {
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
-	      tracepoint(objectstore, remove_enter, osr_name);
+	tracepoint(objectstore, remove_enter, osr_name);
         r = _remove(tx_id, cid, oid);
-	      tracepoint(objectstore, remove_exit, r);
+	tracepoint(objectstore, remove_exit, r);
       }
       break;
 
@@ -1658,11 +1704,11 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         string name = i.decode_string();
         bufferlist bl;
         i.decode_bl(bl);
-	      map<string, bufferptr> to_set;
-	      to_set[name] = bufferptr(bl.c_str(), bl.length());
-	      tracepoint(objectstore, setattr_enter, osr_name);
+        map<string, bufferptr> to_set;
+        to_set[name] = bufferptr(bl.c_str(), bl.length());
+        tracepoint(objectstore, setattr_enter, osr_name);
         r = _setattrs(tx_id, cid, oid, to_set);
-	      tracepoint(objectstore, setattr_exit, r);
+        tracepoint(objectstore, setattr_exit, r);
       }
       break;
 
@@ -1672,9 +1718,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         map<string, bufferptr> aset;
         i.decode_attrset(aset);
-	      tracepoint(objectstore, setattrs_enter, osr_name);
+        tracepoint(objectstore, setattrs_enter, osr_name);
         r = _setattrs(tx_id, cid, oid, aset);
-	      tracepoint(objectstore, setattrs_exit, r);
+        tracepoint(objectstore, setattrs_exit, r);
       }
       break;
 
@@ -1683,9 +1729,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
         string name = i.decode_string();
-	      tracepoint(objectstore, rmattr_enter, osr_name);
+        tracepoint(objectstore, rmattr_enter, osr_name);
         r = _rmattr(tx_id, cid, oid, name.c_str());
-	      tracepoint(objectstore, rmattr_exit, r);
+        tracepoint(objectstore, rmattr_exit, r);
       }
       break;
 
@@ -1693,9 +1739,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
       {
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
-	      tracepoint(objectstore, rmattrs_enter, osr_name);
+        tracepoint(objectstore, rmattrs_enter, osr_name);
         r = _rmattrs(tx_id, cid, oid);
-	      tracepoint(objectstore, rmattrs_exit, r);
+        tracepoint(objectstore, rmattrs_exit, r);
       }
       break;
 
@@ -1704,9 +1750,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
         ghobject_t noid = i.get_oid(op->dest_oid);
-	      tracepoint(objectstore, clone_enter, osr_name);
+        tracepoint(objectstore, clone_enter, osr_name);
         r = _clone(tx_id, cid, oid, noid);
-	      tracepoint(objectstore, clone_exit, r);
+        tracepoint(objectstore, clone_exit, r);
       }
       break;
 
@@ -1717,9 +1763,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t noid = i.get_oid(op->dest_oid);
         uint64_t off = op->off;
         uint64_t len = op->len;
-	      tracepoint(objectstore, clone_range_enter, osr_name, len);
+        tracepoint(objectstore, clone_range_enter, osr_name, len);
         r = _clone_range(tx_id, cid, oid, noid, off, len, off);
-	      tracepoint(objectstore, clone_range_exit, r);
+        tracepoint(objectstore, clone_range_exit, r);
       }
       break;
 
@@ -1731,18 +1777,18 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         uint64_t srcoff = op->off;
         uint64_t len = op->len;
         uint64_t dstoff = op->dest_off;
-	      tracepoint(objectstore, clone_range2_enter, osr_name, len);
+        tracepoint(objectstore, clone_range2_enter, osr_name, len);
         r = _clone_range(tx_id, cid, oid, noid, srcoff ,len, dstoff);
-	      tracepoint(objectstore, clone_range2_exit, r);
+        tracepoint(objectstore, clone_range2_exit, r);
       }
       break;
 
     case Transaction::OP_MKCOLL:
       {
         coll_t cid = i.get_cid(op->cid);
-	      tracepoint(objectstore, mkcoll_enter, osr_name);
+        tracepoint(objectstore, mkcoll_enter, osr_name);
         r = _create_collection(tx_id, cid);
-	      tracepoint(objectstore, mkcoll_exit, r);
+        tracepoint(objectstore, mkcoll_exit, r);
       }
       break;
 
@@ -1769,7 +1815,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
     case Transaction::OP_RMCOLL:
       {
         coll_t cid = i.get_cid(op->cid);
-	      tracepoint(objectstore, rmcoll_enter, osr_name);
+        tracepoint(objectstore, rmcoll_enter, osr_name);
         r = _destroy_collection(tx_id, cid);
         tracepoint(objectstore, rmcoll_exit, r);
       }
@@ -1777,13 +1823,13 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 
     case Transaction::OP_COLL_ADD:
       {
-        assert(0 == "not supported");
-        coll_t ocid = i.get_cid(op->cid);
-        coll_t ncid = i.get_cid(op->dest_cid);
-        ghobject_t oid = i.get_oid(op->oid);
-	      tracepoint(objectstore, coll_add_enter);
-        r = _collection_add(tx_id, ncid, ocid, oid);
-	      tracepoint(objectstore, coll_add_exit, r);
+//        coll_t ocid = i.get_cid(op->cid);
+//        coll_t ncid = i.get_cid(op->dest_cid);
+//        ghobject_t oid = i.get_oid(op->oid);
+//        tracepoint(objectstore, coll_add_enter);
+//        r = _collection_add(tx_id, ncid, ocid, oid);
+//        tracepoint(objectstore, coll_add_exit, r);
+        r = -EOPNOTSUPP;
       }
       break;
 
@@ -1797,7 +1843,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 
     case Transaction::OP_COLL_MOVE:
       {
-        assert(0 == "deprecated");
+        // deprecated, no-op
       }
       break;
 
@@ -1807,15 +1853,17 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oldoid = i.get_oid(op->oid);
         coll_t newcid = i.get_cid(op->dest_cid);
         ghobject_t newoid = i.get_oid(op->dest_oid);
-	      tracepoint(objectstore, coll_move_rename_enter);
+        tracepoint(objectstore, coll_move_rename_enter);
         r = _collection_move_rename(tx_id, oldcid, oldoid, newcid, newoid);
-	      tracepoint(objectstore, coll_move_rename_exit, r);
+        tracepoint(objectstore, coll_move_rename_exit, r);
       }
       break;
 
     case Transaction::OP_COLL_SETATTR:
     case Transaction::OP_COLL_RMATTR:
-      assert(0 == "coll attributes no longer supported");
+      {
+        // deprecated, no-op
+      }
       break;
 
     case Transaction::OP_COLL_RENAME:
@@ -1828,9 +1876,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
       {
         coll_t cid = i.get_cid(op->cid);
         ghobject_t oid = i.get_oid(op->oid);
-	      tracepoint(objectstore, omap_clear_enter, osr_name);
+        tracepoint(objectstore, omap_clear_enter, osr_name);
         r = _omap_clear(tx_id, cid, oid);
-	      tracepoint(objectstore, omap_clear_exit, r);
+        tracepoint(objectstore, omap_clear_exit, r);
       }
       break;
 
@@ -1840,9 +1888,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         map<string, bufferlist> aset;
         i.decode_attrset(aset);
-	      tracepoint(objectstore, omap_setkeys_enter, osr_name);
+        tracepoint(objectstore, omap_setkeys_enter, osr_name);
         r = _omap_setkeys(tx_id, cid, oid, aset);
-	      tracepoint(objectstore, omap_setkeys_exit, r);
+        tracepoint(objectstore, omap_setkeys_exit, r);
       }
       break;
 
@@ -1852,9 +1900,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         set<string> keys;
         i.decode_keyset(keys);
-	      tracepoint(objectstore, omap_rmkeys_enter, osr_name);
+        tracepoint(objectstore, omap_rmkeys_enter, osr_name);
         r = _omap_rmkeys(tx_id, cid, oid, keys);
-	      tracepoint(objectstore, omap_rmkeys_exit, r);
+        tracepoint(objectstore, omap_rmkeys_exit, r);
       }
       break;
 
@@ -1865,9 +1913,9 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         string first, last;
         first = i.decode_string();
         last = i.decode_string();
-	      tracepoint(objectstore, omap_rmkeyrange_enter, osr_name);
+        tracepoint(objectstore, omap_rmkeyrange_enter, osr_name);
         r = _omap_rmkeyrange(tx_id, cid, oid, first, last);
-	      tracepoint(objectstore, omap_rmkeyrange_exit, r);
+        tracepoint(objectstore, omap_rmkeyrange_exit, r);
       }
       break;
 
@@ -1877,15 +1925,15 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
         ghobject_t oid = i.get_oid(op->oid);
         bufferlist bl;
         i.decode_bl(bl);
-	      tracepoint(objectstore, omap_setheader_enter, osr_name);
+        tracepoint(objectstore, omap_setheader_enter, osr_name);
         r = _omap_setheader(tx_id, cid, oid, bl);
-	      tracepoint(objectstore, omap_setheader_exit, r);
+        tracepoint(objectstore, omap_setheader_exit, r);
       }
       break;
 
     case Transaction::OP_SPLIT_COLLECTION:
       {
-	      r = -EOPNOTSUPP;
+        r = -EOPNOTSUPP;
       }
       break;
 
@@ -1903,7 +1951,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 
     case Transaction::OP_SETALLOCHINT:
       {
-	      r = -EOPNOTSUPP;
+        r = -EOPNOTSUPP;
       }
       break;
 
@@ -1919,25 +1967,29 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
       if (r == -ENOENT && !(op->op == Transaction::OP_CLONERANGE ||
 			    op->op == Transaction::OP_CLONE ||
 			    op->op == Transaction::OP_CLONERANGE2 ||
-			    op->op == Transaction::OP_COLL_ADD))
+			    op->op == Transaction::OP_COLL_ADD)) {
         // -ENOENT is usually okay
         ok = true;
+      }
 
-      if (r == -ENODATA)
+      if (r == -ENODATA) {
         ok = true;
+      }
 
       if (!ok) {
         const char *msg = "unexpected error code";
 
         if (r == -ENOENT && (op->op == Transaction::OP_CLONERANGE ||
                  op->op == Transaction::OP_CLONE ||
-                 op->op == Transaction::OP_CLONERANGE2))
+                 op->op == Transaction::OP_CLONERANGE2)) {
           msg = "ENOENT on clone suggests osd bug";
+        }
 
-        if (r == -ENOSPC)
+        if (r == -ENOSPC) {
           // For now, if we hit _any_ ENOSPC, crash, before we do any damage
           // by partially applying transactions.
           msg = "ENOSPC handling not implemented";
+        }
 
         if (r == -ENOTEMPTY) {
           msg = "ENOTEMPTY suggests garbage data in osd data dir";
@@ -1967,6 +2019,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 int PMStore::_touch(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -1981,13 +2034,12 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 		     uint64_t offset, size_t len, bufferlist& bl,
 		     uint32_t fadvise_flags)
 {
-  dout(0) << __func__ << " cid: " << cid << " ghobject_t: " <<
+  dout(10) << __func__ << " cid: " << cid << " ghobject_t: " <<
     oid << " offset: " << offset << " len: " << len << dendl;
   assert(len == bl.length());
 
   CollectionRef c = get_collection(cid);
   if (!c) {
-    dout(10) << __func__ << " NO COLLECTION!" << dendl;
     return -ENOENT;
   }
 
@@ -2007,8 +2059,9 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 		    uint64_t offset, size_t len)
 {
-  dout(0) << __func__ << " " << cid << " " << oid << " " << offset << "~"
+  dout(10) << __func__ << " " << cid << " " << oid << " " << offset << "~"
 	   << len << dendl;
+
   bufferlist bl;
   bl.append_zero(len);
   int result = _write(tx_id, cid, oid, offset, len, bl);
@@ -2017,7 +2070,8 @@ int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 
 int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, uint64_t size)
 {
-  dout(0) << __func__ << " " << cid << " " << oid << " " << size << dendl;
+  dout(10) << __func__ << " " << cid << " " << oid << " " << size << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2042,6 +2096,7 @@ int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, 
 int PMStore::_remove(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -2090,6 +2145,7 @@ int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 			map<string,bufferptr>& aset)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -2100,9 +2156,7 @@ int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
     return -ENOENT;
   }
 
-  int result = o->write_xattr(store, cid, oid, tx_id, aset);
-
-  return result;
+  return o->write_xattr(store, cid, oid, tx_id, aset);
 }
 
 int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, const char *name)
@@ -2118,8 +2172,7 @@ int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, co
     return -ENOENT;
   }
 
-  int result = o->remove_xattr(store, tx_id, name);
-  return result;
+  return o->remove_xattr(store, tx_id, name);
 }
 
 int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
@@ -2146,17 +2199,16 @@ int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 int PMStore::_clone(const uint64_t tx_id, coll_t cid,
     const ghobject_t& oldoid, const ghobject_t& newoid)
 {
-  dout(0) << __func__ << " " << cid << " " << oldoid
+  dout(10) << __func__ << " " << cid << " " << oldoid
 	   << " -> " << newoid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
-    dout(0) << __func__ << " no such collection" << dendl;
-     return -ENOENT;
+    return -ENOENT;
   }
 
   ObjectRef oo = c->get_object(oldoid);
   if (!oo) {
-    dout(0) << __func__ << " no such object " << dendl;
     return -ENOENT;
   }
   ObjectRef no = c->get_or_create_object(newoid);
@@ -2236,24 +2288,30 @@ int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
                           const ghobject_t& oldoid, const ghobject_t& newoid,
                           uint64_t srcoff, uint64_t len, uint64_t dstoff)
 {
-  dout(0) << __func__ << " " << cid << " "
+  dout(10) << __func__ << " " << cid << " "
 	   << oldoid << " " << srcoff << "~" << len << " -> "
 	   << newoid << " " << dstoff << "~" << len
 	   << dendl;
+
   CollectionRef c = get_collection(cid);
-  if (!c)
+  if (!c) {
     return -ENOENT;
+  }
 
   ObjectRef oo = c->get_object(oldoid);
-  if (!oo)
+  if (!oo) {
     return -ENOENT;
+  }
 
   ObjectRef no = c->get_or_create_object(newoid);
 
-  if (srcoff >= oo->data_len)
+  if (srcoff >= oo->data_len) {
     return 0;
-  if (srcoff + len >= oo->data_len)
+  }
+
+  if (srcoff + len >= oo->data_len) {
     len = oo->data_len - srcoff;
+  }
 
   /*
    * We have to map srcoff + len to range og blocks + offset in the first block,
@@ -2314,12 +2372,13 @@ int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
 
   used_bytes += written_data;
 
-  return len;
+  return 0;
 }
 
 int PMStore::_omap_clear(const uint64_t tx_id, coll_t cid, const ghobject_t &oid)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2347,6 +2406,7 @@ int PMStore::_omap_setkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &o
 			    map<string, bufferlist> &aset)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2366,6 +2426,7 @@ int PMStore::_omap_rmkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oi
 			   const set<string> &keys)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2386,6 +2447,7 @@ int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t
 {
   dout(10) << __func__ << " " << cid << " " << oid << " " << first
 	   << " " << last << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2405,15 +2467,14 @@ int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t
     omap_keys_to_remove.insert(*it);
   }
 
-  int result = o->remove_omaps(store, tx_id, omap_keys_to_remove);
-
-  return result;
+  return o->remove_omaps(store, tx_id, omap_keys_to_remove);
 }
 
 int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
 			      bufferlist &bl)
 {
   dout(10) << __func__ << " " << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2424,17 +2485,13 @@ int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t 
     return -ENOENT;
   }
 
-  int result = o->write_omap_header(store, cid, oid, tx_id, bl);
-
-  if (result < 0)
-    return result;
-
-  return 0;
+  return  o->write_omap_header(store, cid, oid, tx_id, bl);
 }
 
 int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
 {
   dout(10) << __func__ << " " << cid << dendl;
+
   RWLock::WLocker l(coll_lock);
   ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
   if (cp != coll_map.end()) {
@@ -2449,6 +2506,7 @@ int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
 int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
 {
   dout(10) << __func__ << " " << cid << dendl;
+
   RWLock::WLocker l(coll_lock);
   ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
   if (cp == coll_map.end()) {
@@ -2475,8 +2533,9 @@ int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
 
         // <-- destroy all OMAP/XATTR related to the object
         // remove associated xattrs and omap
-        if (o->omap_header != 0)
+        if (o->omap_header != 0) {
           pmb_tdel(store, tx_id, o->omap_header);
+        }
 
         if (o->xattrs != 0) {
           assert(pmb_tdel(store, tx_id, o->xattrs) == PMB_OK);
@@ -2500,6 +2559,7 @@ int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
 int PMStore::_collection_add(const uint64_t tx_id, coll_t cid, coll_t ocid, const ghobject_t& oid)
 {
   dout(10) << __func__ << " " << cid << " " << ocid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -2529,6 +2589,7 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
 {
   dout(10) << __func__ << " " << oldcid << " " << oldoid << " -> "
 	   << cid << " " << oid << dendl;
+
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -2550,11 +2611,13 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
   }
 
   int r = -EEXIST;
-  if (c->object_hash.count(oid))
+  if (c->object_hash.count(oid)) {
     goto out;
+  }
   r = -ENOENT;
-  if (oc->object_hash.count(oldoid) == 0)
+  if (oc->object_hash.count(oldoid) == 0) {
     goto out;
+  }
   {
     ObjectRef o = oc->object_hash[oldoid];
     r = o->change_key(store, cid, oid, tx_id);
@@ -2570,8 +2633,9 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
   r = 0;
  out:
   c->lock.put_write();
-  if (&(*c) != &(*oc))
+  if (&(*c) != &(*oc)) {
     oc->lock.put_write();
+  }
   return r;
 }
 
@@ -2580,6 +2644,7 @@ int PMStore::_split_collection(const uint64_t tx_id, coll_t cid, uint32_t bits,
 {
   dout(10) << __func__ << " " << cid << " " << bits << " " << match << " "
 	   << dest << dendl;
+
   CollectionRef sc = get_collection(cid);
   if (!sc) {
     return -ENOENT;

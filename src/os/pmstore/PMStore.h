@@ -200,7 +200,6 @@ public:
   struct Collection : public RefCountedObject {
     ceph::unordered_map<ghobject_t, ObjectRef> object_hash;  ///< for lookup
     map<ghobject_t, ObjectRef, ghobject_t::BitwiseComparator> object_map;        ///< for iteration
-    map<string,uint64_t> xattr;
     RWLock lock;   ///< for object_{map,hash}
     uint64_t id;   // only for collections without objects, removed after first
                    // object is written to the collection
@@ -231,14 +230,12 @@ public:
 
     void encode(bufferlist& bl) const {
       ENCODE_START(1, 1, bl);
-      ::encode(xattr, bl);
       uint32_t s = object_map.size();
       ::encode(s, bl);
       ENCODE_FINISH(bl);
     }
     void decode(bufferlist::iterator& p) {
       DECODE_START(1, p);
-      ::decode(xattr, p);
       uint32_t s;
       ::decode(s, p);
       DECODE_FINISH(p);
