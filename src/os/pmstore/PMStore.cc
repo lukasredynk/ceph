@@ -39,7 +39,7 @@
 #define tracepoint(...)
 //#endif
 
-#define dout_subsys ceph_subsys_filestore
+#define dout_subsys ceph_subsys_pmstore
 #undef dout_prefix
 #define dout_prefix *_dout << "pmstore::object "
 
@@ -96,14 +96,14 @@ int PMStore::Object::write(pmb_handle* store, coll_t& cid, const ghobject_t& oid
       kvp.val_len = remining < data_blocksize ?
         remining : data_blocksize;
     }
-    dout(20) << __func__ << " BEFORE: oid: " << kvp.obj_id << " offset: " << kvp.offset << " len: " << kvp.val_len << dendl;
+    dout(5) << __func__ << " BEFORE: oid: " << kvp.obj_id << " offset: " << kvp.offset << " len: " << kvp.val_len << dendl;
 
     result = pmb_tput(store, tx_id, &kvp);
 
-    dout(20) << __func__ << " AFTER: oid: " << kvp.obj_id << dendl;
+    dout(5) << __func__ << " AFTER: oid: " << kvp.obj_id << dendl;
 
     if (result != PMB_OK) {
-      dout(20) << __func__ << " result: " << result << dendl;
+      dout(5) << __func__ << " result: " << result << dendl;
       if (result == PMB_ENOSPC) {
         return -ENOSPC;
       } else {
@@ -164,7 +164,7 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
 
   pmb_pair kvp;
   uint8_t result;
-  dout(20) << __func__ << " len: " << len << " req_block " << requested_block << " data.size()" << data.size() << dendl;
+  dout(5) << __func__ << " len: " << len << " req_block " << requested_block << " data.size()" << data.size() << dendl;
   if (data.size() < requested_block) {
     // add blocks to the object
     bufferlist write_key;
@@ -466,7 +466,7 @@ int PMStore::Object::remove_xattr(pmb_handle* store, const uint64_t tx_id, const
       " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
   }
 
-  dout(10) << __func__ << " removed attr: " << xattr_key << " len: " << kvp.val_len << dendl;
+  dout(4) << __func__ << " removed attr: " << xattr_key << " len: " << kvp.val_len << dendl;
   return result;
 }
 
@@ -600,7 +600,7 @@ int PMStore::peek_journal_fsid(uuid_d *fsid)
 
 int PMStore::mount()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
   int r = _load();
   if (r < 0) {
     return r;
@@ -612,7 +612,7 @@ int PMStore::mount()
 
 int PMStore::umount()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   //op_tp.stop();
   finisher.stop();
@@ -622,14 +622,14 @@ int PMStore::umount()
 
 int PMStore::_save()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
   Mutex::Locker l(apply_lock); // block any writer
   dump_all();
   set<coll_t> collections;
   for (ceph::unordered_map<coll_t,CollectionRef>::iterator p = coll_map.begin();
        p != coll_map.end();
        ++p) {
-    dout(20) << __func__ << " coll " << p->first << " " << p->second << dendl;
+    dout(5) << __func__ << " coll " << p->first << " " << p->second << dendl;
     collections.insert(p->first);
     bufferlist bl;
     assert(p->second);
@@ -668,7 +668,7 @@ int PMStore::_save()
 
 void PMStore::dump_all()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   Formatter *f = Formatter::create("json-pretty");
   f->open_object_section("store");
@@ -682,7 +682,7 @@ void PMStore::dump_all()
 
 void PMStore::dump(Formatter *f)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   f->open_array_section("collections");
   for (ceph::unordered_map<coll_t,CollectionRef>::iterator p = coll_map.begin();
@@ -711,7 +711,7 @@ void PMStore::dump(Formatter *f)
 
 int PMStore::_load()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   bufferlist bl;
   string fn = path + "/collections";
@@ -784,7 +784,7 @@ int PMStore::_load()
   }
 
   uint8_t error;
-  dout(10) << __func__ << " open PMStore data.pool at: " << opts.path << dendl;
+  dout(4) << __func__ << " open PMStore data.pool at: " << opts.path << dendl;
   store = pmb_open(&opts, &error);
 
   if (store == NULL) {
@@ -796,10 +796,10 @@ int PMStore::_load()
   pmb_iter *iter = pmb_iter_open(store, PMB_DATA);
   pmb_pair kvp;
   while(pmb_iter_valid(iter)) {
-    dout(10) << __func__ << " current iter @ obj_id: " << pmb_iter_pos(iter) << dendl;
+    dout(4) << __func__ << " current iter @ obj_id: " << pmb_iter_pos(iter) << dendl;
     r = pmb_iter_get(iter, &kvp);
     if (r != PMB_OK) {
-      dout(10) << __func__ << " ERROR processing iterator!" << dendl;
+      dout(4) << __func__ << " ERROR processing iterator!" << dendl;
     } else if (kvp.key_len != 0) {
       _add_object(&kvp);
     } else {
@@ -811,7 +811,7 @@ int PMStore::_load()
 
   iter = pmb_iter_open(store, PMB_META);
   while(pmb_iter_valid(iter)) {
-    dout(10) << __func__ << " current iter @ obj_id: " << pmb_iter_pos(iter) << dendl;
+    dout(4) << __func__ << " current iter @ obj_id: " << pmb_iter_pos(iter) << dendl;
     r = pmb_iter_get(iter, &kvp);
     if (r != PMB_OK) {
       dout(0) << __func__ << " ERROR processing iterator!" << dendl;
@@ -831,7 +831,7 @@ int PMStore::_load()
 
 void PMStore::_add_object(pmb_pair *kvp)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   bufferlist bl;
   bl.append((const char*) kvp->key, kvp->key_len);
@@ -849,21 +849,21 @@ void PMStore::_add_object(pmb_pair *kvp)
 
   CollectionRef c = get_collection(cid);
   if (!c) {
-    dout(10) << __func__ << " ERROR collection not found!" << dendl;
+    dout(4) << __func__ << " ERROR collection not found!" << dendl;
 
     return;
   }
 
-  dout(10) << __func__ << " before getting ObjectRef:" << oid << dendl;
+  dout(4) << __func__ << " before getting ObjectRef:" << oid << dendl;
   ObjectRef o = c->get_or_create_object(oid);
 
-  dout(10) << __func__ << " adding part: " << part << " obj_id: " << kvp->obj_id
+  dout(4) << __func__ << " adding part: " << part << " obj_id: " << kvp->obj_id
     << " block size: " << data_blocksize << dendl;
   o->add(part, kvp->obj_id);
   if((part + 1) * data_blocksize > o->data_len) {
     o->data_len = part * data_blocksize + kvp->val_len;
   }
-  dout(10) << __func__ << " object data_len: " << o->data_len << dendl;
+  dout(4) << __func__ << " object data_len: " << o->data_len << dendl;
 }
 
 /*
@@ -873,7 +873,7 @@ void PMStore::_add_object(pmb_pair *kvp)
  */
 void PMStore::_add_meta_object(pmb_pair *kvp)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   bufferlist bl;
   bl.append((const char*) kvp->key, kvp->key_len);
@@ -881,7 +881,7 @@ void PMStore::_add_meta_object(pmb_pair *kvp)
   ghobject_t oid;
   char type;
 
-  //dout(10) << __func__ << " key: " << key << " key_len: " << kvp->key_len <<
+  //dout(4) << __func__ << " key: " << key << " key_len: " << kvp->key_len <<
   //  " val_len: " << kvp->val_len << dendl;
 
   // decode key: coll_t, ghobject_t, part
@@ -895,14 +895,14 @@ void PMStore::_add_meta_object(pmb_pair *kvp)
   // find collection and object, both should exist at this point
   CollectionRef c = get_collection(cid);
   if (!c) {
-    dout(10) << __func__ << " ERROR collection not found!" << dendl;
+    dout(4) << __func__ << " ERROR collection not found!" << dendl;
 
     return;
   }
 
   ObjectRef o = c->get_object(oid);
   if(!o) {
-    dout(10) << __func__ << " ERROR object not found!" << dendl;
+    dout(4) << __func__ << " ERROR object not found!" << dendl;
 
     return;
   }
@@ -948,7 +948,7 @@ void PMStore::_add_meta_object(pmb_pair *kvp)
 
 void PMStore::set_fsid(uuid_d u)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   int r = write_meta("fs_fsid", stringify(u));
   assert(r >= 0);
@@ -956,7 +956,7 @@ void PMStore::set_fsid(uuid_d u)
 
 uuid_d PMStore::get_fsid()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   string fsid_str;
   int r = read_meta("fs_fsid", &fsid_str);
@@ -969,7 +969,7 @@ uuid_d PMStore::get_fsid()
 
 int PMStore::mkfs()
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   string fsid_str;
   int r = read_meta("fs_fsid", &fsid_str);
@@ -1000,7 +1000,7 @@ int PMStore::mkfs()
 
 int PMStore::statfs(struct statfs *st)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   st->f_bsize = data_blocksize;
   st->f_bfree = st->f_bavail = pmb_nfree(store, PMB_DATA);
@@ -1030,7 +1030,7 @@ PMStore::CollectionRef PMStore::get_collection(coll_t cid)
 
 bool PMStore::exists(coll_t cid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1049,7 +1049,7 @@ int PMStore::stat(
     struct stat *st,
     bool allow_eio)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1076,7 +1076,7 @@ int PMStore::read(
     uint32_t op_flags,
     bool allow_eio)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " "
+  dout(4) << __func__ << " " << cid << " " << oid << " "
 	   << offset << "~" << len << dendl;
 
   CollectionRef c = get_collection(cid);
@@ -1089,7 +1089,7 @@ int PMStore::read(
     return -ENOENT;
   }
 
-  dout(10) << __func__ << " oid: " << oid << " object data_len: " << o->data_len << dendl;
+  dout(4) << __func__ << " oid: " << oid << " object data_len: " << o->data_len << dendl;
   if (offset >= o->data_len) {
     return 0;
   }
@@ -1107,7 +1107,7 @@ int PMStore::read(
   block_offset = start * data_blocksize;
   remining = l;
 
-  dout(10) << __func__ << " " << oid << " data_len: " << o->data_len << " offset: " << offset <<
+  dout(4) << __func__ << " " << oid << " data_len: " << o->data_len << " offset: " << offset <<
     " block_offset: " << block_offset <<  " remining: " << remining <<
     " start: " << start << " end: " << end << dendl;
 
@@ -1134,7 +1134,7 @@ int PMStore::read(
         } else {
           kvp.val_len = data_blocksize - (offset - block_offset);
         }
-        dout(10) << __func__ << " allocated, but empty block, appending " << kvp.val_len << " zeros" << dendl;
+        dout(4) << __func__ << " allocated, but empty block, appending " << kvp.val_len << " zeros" << dendl;
         bl.append_zero(kvp.val_len);
       } else {
         dout(0) << __func__ << " val len: " << kvp.val_len << dendl;
@@ -1155,7 +1155,7 @@ int PMStore::read(
       } else {
         kvp.val_len = data_blocksize - (offset - block_offset);
       }
-      dout(10) << __func__ << " block " << start << " don't exist, appending " << kvp.val_len << " zeros" << dendl;
+      dout(4) << __func__ << " block " << start << " don't exist, appending " << kvp.val_len << " zeros" << dendl;
       bl.append_zero(kvp.val_len);
     }
     start++;
@@ -1194,7 +1194,7 @@ int PMStore::read(
 int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
 		     uint64_t offset, size_t len, bufferlist& bl)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << offset << "~"
+  dout(4) << __func__ << " " << cid << " " << oid << " " << offset << "~"
 	   << len << dendl;
 
   CollectionRef c = get_collection(cid);
@@ -1225,7 +1225,7 @@ int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
 int PMStore::getattr(coll_t cid, const ghobject_t& oid,
 		      const char *name, bufferptr& value)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << name << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << " " << name << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1259,14 +1259,14 @@ int PMStore::getattr(coll_t cid, const ghobject_t& oid,
   assert(aset.count(k) == 1);
   value = aset[k];
 
-  dout(10) << __func__ << " attr: " << name << " len: " << kvp.val_len << dendl;
+  dout(4) << __func__ << " attr: " << name << " len: " << kvp.val_len << dendl;
   return 0;
 }
 
 int PMStore::getattrs(coll_t cid, const ghobject_t& oid,
 		       map<string,bufferptr>& aset)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1296,7 +1296,7 @@ int PMStore::getattrs(coll_t cid, const ghobject_t& oid,
 
 int PMStore::list_collections(vector<coll_t>& ls)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   RWLock::RLocker l(coll_lock);
   for (ceph::unordered_map<coll_t,CollectionRef>::iterator p = coll_map.begin();
@@ -1309,7 +1309,7 @@ int PMStore::list_collections(vector<coll_t>& ls)
 
 bool PMStore::collection_exists(coll_t cid)
 {
-  dout(10) << __func__ << " " << cid << dendl;
+  dout(4) << __func__ << " " << cid << dendl;
 
   RWLock::RLocker l(coll_lock);
   bool ret = coll_map.count(cid);
@@ -1318,7 +1318,7 @@ bool PMStore::collection_exists(coll_t cid)
 
 bool PMStore::collection_empty(coll_t cid)
 {
-  dout(10) << __func__ << " " << cid << dendl;
+  dout(4) << __func__ << " " << cid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1333,7 +1333,7 @@ int PMStore::collection_list(coll_t cid, ghobject_t start, ghobject_t end,
                               bool sort_bitwise, int max,
                               vector<ghobject_t> *ls, ghobject_t *next)
 {
-  dout(10) << __func__ << " " << cid << dendl;
+  dout(4) << __func__ << " " << cid << dendl;
 
   if (!sort_bitwise) {
     return -EOPNOTSUPP;
@@ -1368,7 +1368,7 @@ int PMStore::omap_get(
     bufferlist *header,           ///< [out] omap header
     map<string, bufferlist> *out) ///< [out] Key to value map
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1381,7 +1381,7 @@ int PMStore::omap_get(
   }
 
   pmb_pair kvp;
-  dout(10) << __func__ << " get omap header: " << o->omap_header << dendl;
+  dout(4) << __func__ << " get omap header: " << o->omap_header << dendl;
 
   // get header
   if (header != NULL) {
@@ -1417,7 +1417,7 @@ int PMStore::omap_get_header(
     bufferlist *header,       ///< [out] omap header
     bool allow_eio)           ///< [in] don't assert on eio
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1433,7 +1433,7 @@ int PMStore::omap_get_header(
     *header = bufferlist();
   } else {
     pmb_pair kvp;
-    dout(10) << __func__ << " get omap header: " << o->omap_header << dendl;
+    dout(4) << __func__ << " get omap header: " << o->omap_header << dendl;
     assert(pmb_get(store, o->omap_header, &kvp) == PMB_OK);
     if (header != NULL) {
       header->clear();
@@ -1450,7 +1450,7 @@ int PMStore::omap_get_keys(
     const ghobject_t &oid,  ///< [in] Object containing omap
     set<string> *keys)      ///< [out] Keys defined on oid
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1477,7 +1477,7 @@ int PMStore::omap_get_values(
     map<string, bufferlist> *out ///< [out] Returned keys and values
     )
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1507,7 +1507,7 @@ int PMStore::omap_check_keys(
     set<string> *out         ///< [out] Subset of keys defined on oid
     )
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1533,7 +1533,7 @@ int PMStore::omap_check_keys(
 ObjectMap::ObjectMapIterator PMStore::get_omap_iterator(coll_t cid,
 							 const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -1556,7 +1556,7 @@ int PMStore::queue_transactions(Sequencer *osr,
 				 TrackedOpRef op,
 				 ThreadPool::TPHandle *handle)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
 
   // because pmstore operations are synchronous, we can implement the
   // Sequencer with a mutex. this guarantees ordering on a given sequencer,
@@ -1622,7 +1622,7 @@ int PMStore::queue_transactions(Sequencer *osr,
 
 int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 {
-  dout(10) << __func__ << dendl;
+  dout(4) << __func__ << dendl;
   Transaction::iterator i = t.begin();
   int pos = 0;
 
@@ -1807,7 +1807,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
           r = _collection_hint_expected_num_objs(cid, pg_num, num_objs);
         } else {
           // Ignore the hint
-          dout(10) << "Unrecognized collection hint type: " << type << dendl;
+          dout(4) << "Unrecognized collection hint type: " << type << dendl;
         }
       }
       break;
@@ -2018,7 +2018,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
 
 int PMStore::_touch(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2034,7 +2034,7 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 		     uint64_t offset, size_t len, bufferlist& bl,
 		     uint32_t fadvise_flags)
 {
-  dout(10) << __func__ << " cid: " << cid << " ghobject_t: " <<
+  dout(4) << __func__ << " cid: " << cid << " ghobject_t: " <<
     oid << " offset: " << offset << " len: " << len << dendl;
   assert(len == bl.length());
 
@@ -2046,7 +2046,7 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
   ObjectRef o = c->get_or_create_object(oid);
 
   int result = o->write(store, cid, oid, tx_id, data_blocksize, bl.c_str(), offset, len);
-  dout(10) << __func__ << " cid: " << cid << " ghobject_t: " <<
+  dout(4) << __func__ << " cid: " << cid << " ghobject_t: " <<
            oid << " result: " << result << dendl;
   if (result >= 0) {
     used_bytes += result;
@@ -2059,7 +2059,7 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 		    uint64_t offset, size_t len)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << offset << "~"
+  dout(4) << __func__ << " " << cid << " " << oid << " " << offset << "~"
 	   << len << dendl;
 
   bufferlist bl;
@@ -2070,7 +2070,7 @@ int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 
 int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, uint64_t size)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << size << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << " " << size << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2095,7 +2095,7 @@ int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, 
 
 int PMStore::_remove(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2144,7 +2144,7 @@ int PMStore::_remove(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 			map<string,bufferptr>& aset)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2161,7 +2161,7 @@ int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
 
 int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, const char *name)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << name << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << " " << name << dendl;
   CollectionRef c = get_collection(cid);
   if (!c) {
     return -ENOENT;
@@ -2177,7 +2177,7 @@ int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, co
 
 int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
   CollectionRef c = get_collection(cid);
   if (!c) {
      return -ENOENT;
@@ -2199,7 +2199,7 @@ int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
 int PMStore::_clone(const uint64_t tx_id, coll_t cid,
     const ghobject_t& oldoid, const ghobject_t& newoid)
 {
-  dout(10) << __func__ << " " << cid << " " << oldoid
+  dout(4) << __func__ << " " << cid << " " << oldoid
 	   << " -> " << newoid << dendl;
 
   CollectionRef c = get_collection(cid);
@@ -2280,7 +2280,7 @@ int PMStore::_clone(const uint64_t tx_id, coll_t cid,
       return result;
     }
   }
-  dout(10) << __func__ << " return: " << result << dendl;
+  dout(4) << __func__ << " return: " << result << dendl;
   return result;
 }
 
@@ -2288,7 +2288,7 @@ int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
                           const ghobject_t& oldoid, const ghobject_t& newoid,
                           uint64_t srcoff, uint64_t len, uint64_t dstoff)
 {
-  dout(10) << __func__ << " " << cid << " "
+  dout(4) << __func__ << " " << cid << " "
 	   << oldoid << " " << srcoff << "~" << len << " -> "
 	   << newoid << " " << dstoff << "~" << len
 	   << dendl;
@@ -2377,7 +2377,7 @@ int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
 
 int PMStore::_omap_clear(const uint64_t tx_id, coll_t cid, const ghobject_t &oid)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2405,7 +2405,7 @@ int PMStore::_omap_clear(const uint64_t tx_id, coll_t cid, const ghobject_t &oid
 int PMStore::_omap_setkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
 			    map<string, bufferlist> &aset)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2425,7 +2425,7 @@ int PMStore::_omap_setkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &o
 int PMStore::_omap_rmkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
 			   const set<string> &keys)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2445,7 +2445,7 @@ int PMStore::_omap_rmkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oi
 int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
 			       const string& first, const string& last)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << " " << first
+  dout(4) << __func__ << " " << cid << " " << oid << " " << first
 	   << " " << last << dendl;
 
   CollectionRef c = get_collection(cid);
@@ -2473,7 +2473,7 @@ int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t
 int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
 			      bufferlist &bl)
 {
-  dout(10) << __func__ << " " << cid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2490,7 +2490,7 @@ int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t 
 
 int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
 {
-  dout(10) << __func__ << " " << cid << dendl;
+  dout(4) << __func__ << " " << cid << dendl;
 
   RWLock::WLocker l(coll_lock);
   ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
@@ -2505,7 +2505,7 @@ int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
 
 int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
 {
-  dout(10) << __func__ << " " << cid << dendl;
+  dout(4) << __func__ << " " << cid << dendl;
 
   RWLock::WLocker l(coll_lock);
   ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
@@ -2525,7 +2525,7 @@ int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
         for(size_t i = 0; i < o->data.size(); i++) {
           if (o->data[i] != 0) {
             if (pmb_tdel(store, tx_id, o->data[i]) != PMB_OK) {
-              dout(10) << __func__ << " ERROR: cannot destroy block: " << o->data[i] <<
+              dout(4) << __func__ << " ERROR: cannot destroy block: " << o->data[i] <<
                 " from object: " << stringify(p->first) << dendl;
             }
           }
@@ -2558,7 +2558,7 @@ int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
 
 int PMStore::_collection_add(const uint64_t tx_id, coll_t cid, coll_t ocid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << cid << " " << ocid << " " << oid << dendl;
+  dout(4) << __func__ << " " << cid << " " << ocid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
   if (!c) {
@@ -2587,7 +2587,7 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
                                       coll_t oldcid, const ghobject_t& oldoid,
 				      coll_t cid, const ghobject_t& oid)
 {
-  dout(10) << __func__ << " " << oldcid << " " << oldoid << " -> "
+  dout(4) << __func__ << " " << oldcid << " " << oldoid << " -> "
 	   << cid << " " << oid << dendl;
 
   CollectionRef c = get_collection(cid);
@@ -2642,7 +2642,7 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
 int PMStore::_split_collection(const uint64_t tx_id, coll_t cid, uint32_t bits,
                                uint32_t match, coll_t dest)
 {
-  dout(10) << __func__ << " " << cid << " " << bits << " " << match << " "
+  dout(4) << __func__ << " " << cid << " " << bits << " " << match << " "
 	   << dest << dendl;
 
   CollectionRef sc = get_collection(cid);
@@ -2659,7 +2659,7 @@ int PMStore::_split_collection(const uint64_t tx_id, coll_t cid, uint32_t bits,
   map<ghobject_t,ObjectRef>::iterator p = sc->object_map.begin();
   while (p != sc->object_map.end()) {
     if (p->first.match(bits, match)) {
-      dout(20) << " moving " << p->first << dendl;
+      dout(5) << " moving " << p->first << dendl;
       p->second->change_key(store, dest, p->first, tx_id);
       dc->object_map.insert(make_pair(p->first, p->second));
       dc->object_hash.insert(make_pair(p->first, p->second));

@@ -13,8 +13,8 @@
  */
 
 
-#ifndef CEPH_PMSTORE_H
-#define CEPH_PMSTORE_H
+#ifndef CEPH_OSD_PMSTORE_H
+#define CEPH_OSD_PMSTORE_H
 
 #include <vector>
 #include <mutex>
@@ -34,10 +34,6 @@
 //#else
 //#define tracepoint(...)
 //#endif
-
-#define dout_subsys ceph_subsys_filestore
-#undef dout_prefix
-#define dout_prefix *_dout << "pmstore::opseq: "
 
 class PMStore : public ObjectStore {
   CephContext *const cct;
@@ -482,4 +478,4 @@ public:
     ThreadPool::TPHandle *handle = NULL);
 };
 
-#endif
+#endif // CEPH_OSD_PMSTORE_H
