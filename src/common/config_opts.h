@@ -1054,7 +1054,7 @@ OPTION(journal_force_aio, OPT_BOOL, false)
 // PMStore: opts for data store
 OPTION(pmstore_max_key_len, OPT_U32, 4072)
 OPTION(pmstore_max_val_len, OPT_U32,  1024U * 1024)
-OPTION(pmstore_size, OPT_U64, 30UL * 1024 * 1024 * 1024)
+OPTION(pmstore_size, OPT_U64, 25UL * 1024 * 1024 * 1024)
 OPTION(pmstore_tx_slots, OPT_U32, 4)
 // available options: "sync", "async", "nosync", "thsync"
 OPTION(pmstore_sync, OPT_STR, "thsync")
