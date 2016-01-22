@@ -658,6 +658,7 @@ set(libos_srcs
   os/bluestore/FreelistManager.cc
   os/bluestore/KernelDevice.cc
   os/bluestore/StupidAllocator.cc
+  os/pmstore/PMStore.cc
   os/fs/FS.cc
   ${libos_xfs_srcs})
 if(${HAVE_LIBFUSE})
@@ -700,6 +701,19 @@ set_property(TARGET rocksdb PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/src/
 add_dependencies(rocksdb build_rocksdb)
 set(ROCKSDB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/rocksdb/include)
 
+# make pmbackend statically
+add_custom_target(build_pmbackend
+        COMMAND
+        echo "ok" # mkdir build && cd build && cmake .. && make
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/pmbackend
+        COMMENT "pmbackend building")
+
+# add a imported library for libpmbackend.a
+add_library(pmbackend STATIC IMPORTED)
+set_property(TARGET pmbackend PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/src/pmbackend/build/libpmbackend.a")
+add_dependencies(pmbackend build_pmbackend)
+set(PMBACKEND_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/pmbackend/include)
+
 add_subdirectory(kv)
 
 add_library(os STATIC ${libos_srcs} $<TARGET_OBJECTS:kv_objs>)
@@ -722,6 +736,10 @@ if(WITH_SPDK)
     ${DPDK_INCLUDE_DIR}
     ${PCIACCESS_INCLUDE_DIR})
 endif(WITH_SPDK)
+if(${HAVE_PMSTORE})
+    target_link_libraries(os pmbackend)
+    target_include_directories(os PUBLIC ${PMBACKEND_INCLUDE_DIR})
+endif(${HAVE_PMSTORE})
 target_link_libraries(os kv)
 
 set(cls_references_files objclass/class_api.cc)
