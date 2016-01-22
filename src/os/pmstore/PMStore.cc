@@ -157,12 +157,13 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     requested_block = 1;
   }
 
+  pmb_pair kvp;
   uint8_t result;
   dout(20) << __func__ << " len: " << len << " req_block " << requested_block << " data.size()" << data.size() << dendl;
   if (data.size() < requested_block) {
     // add blocks to the object
     bufferlist write_key;
-    pmb_pair kvp = {};
+    kvp = {};
 
     for(size_t i = data.size(); i < requested_block; i++) {
       kvp.obj_id = 0;
@@ -171,9 +172,8 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
       kvp.key = (void *) write_key.c_str();
       kvp.key_len = write_key.length();
       result = pmb_tput(store, tx_id, &kvp);
-      if (result != PMB_OK) {
-        return -EIO;
-      }
+      if (result != PMB_OK)
+        goto err;
       data.push_back(kvp.obj_id);
       ++used_blocks;
     }
@@ -182,9 +182,8 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     for(uint64_t i = data.size(); i > requested_block; --i) {
       dout(0) << __func__ << " truncating: " << data[i] << dendl;
       result = pmb_tdel(store, tx_id, data[i]);
-      if (result != PMB_OK) {
-        return -EIO;
-      }
+      if (result != PMB_OK)
+        goto err;
       data[i] = 0;
       --used_blocks;
     }
@@ -192,7 +191,7 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
 
   if (len % data_blocksize != 0) {
     // truncate most likely is within boundary of single block, zero it
-    pmb_pair kvp = {};
+    kvp = {};
     pmb_get(store, data[len / data_blocksize], &kvp);
 
     size_t off = len % data_blocksize;
@@ -205,15 +204,25 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     }
     kvp.val_len = off;
     kvp.val = bl.c_str();
-    pmb_tdel(store, tx_id, kvp.obj_id);
+    result = pmb_tdel(store, tx_id, kvp.obj_id);
+    if (result != PMB_OK)
+      goto err;
     kvp.obj_id = 0;
-    pmb_tput(store, tx_id, &kvp);
+    result = pmb_tput(store, tx_id, &kvp);
+    if (result != PMB_OK) {
+      goto err;
+    }
     data[len / data_blocksize] = kvp.obj_id;
   }
 
   *diff = data_len - len;
   data_len = len;
   return 0;
+
+err:
+  dout(0) << __func__ << " error modify block: " << result << \
+          " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
+  return -EIO;
 }
 
 int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
@@ -229,16 +238,18 @@ int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
   kvp.val_len = omap_header_bl.length();
   kvp.obj_id = omap_header;
 
-  uint64_t result = pmb_tput_meta(store, tx_id, &kvp);
+  int result = pmb_tput_meta(store, tx_id, &kvp);
 
   if (result != PMB_OK) {
+    dout(0) << __func__ << " error writing omap header: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
     if (result == PMB_ENOSPC)
       return -ENOSPC;
     else
       return -EIO;
+  } else {
+    omap_header = kvp.obj_id;
   }
-
-  omap_header = kvp.obj_id;
 
   return 0;
 }
@@ -258,6 +269,9 @@ int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
 
   if (result == PMB_OK) {
     omap_header = kvp.obj_id;
+  } else {
+    dout(0) << __func__ << " error writing omap header: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
   }
 
   return result;
@@ -304,11 +318,17 @@ int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
   kvp.val_len = to_write.length();
 
   dout(0) << __func__ << " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
-  assert(pmb_tput_meta(store, tx_id, &kvp) == PMB_OK);
 
-  xattrs = kvp.obj_id;
+  int result = pmb_tput_meta(store, tx_id, &kvp);
 
-  return 0;
+  if (result == PMB_OK) {
+    xattrs = kvp.obj_id;
+  } else {
+    dout(0) << __func__ << " error writing xattrs: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
+  }
+
+  return result;
 }
 
 int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
@@ -329,7 +349,8 @@ int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
   if (result == PMB_OK) {
     xattrs = kvp.obj_id;
   } else {
-    dout(0) << " error writing xattrs: " << result << dendl;
+    dout(0) << __func__ << " error writing xattrs: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
   }
 
   return result;
@@ -378,7 +399,7 @@ int PMStore::Object::remove_omaps(pmb_handle* store, const uint64_t tx_id, const
   }
 
   if (result != PMB_OK) {
-    dout(0) << " error writing omaps: " << result << dendl;
+    dout(0) << " error removing omaps: " << result << dendl;
   }
 
   return result;
@@ -433,7 +454,8 @@ int PMStore::Object::remove_xattr(pmb_handle* store, const uint64_t tx_id, const
       }
     }
   } else {
-    dout(0) << " error writing xattrs: " << result << dendl;
+    dout(0) << __func__ << " error writing xattrs: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
   }
 
   dout(10) << __func__ << " removed attr: " << xattr_key << " len: " << kvp.val_len << dendl;
@@ -477,12 +499,14 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 
   int result = pmb_tput_meta(store, tx_id, &kvp);
 
-  if (result != PMB_OK) {
-    dout(0) << __func__ << " failed to write omaps! error: " << result << \
+  if (result == PMB_OK) {
+    omaps = kvp.obj_id;
+  } else {
+    dout(0) << __func__ << " error writing omap: " << result << \
       " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
   }
 
-  omaps = kvp.obj_id;
+
 
   return result;
 }
@@ -502,6 +526,9 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 
   if (result == PMB_OK) {
     omaps = kvp.obj_id;
+  } else {
+    dout(0) << __func__ << " error writing omap: " << result << \
+      " key len: " << kvp.key_len << " val len: " << kvp.val_len << dendl;
   }
 
   return result;
