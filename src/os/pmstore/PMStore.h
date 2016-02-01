@@ -20,6 +20,7 @@
 #include <mutex>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/intrusive/list.hpp>
+#include <compressor/Compressor.h>
 #include "pmbackend/include/pmbackend.h"
 #include "include/assert.h"
 #include "include/unordered_map.h"
@@ -37,8 +38,9 @@
 
 class PMStore : public ObjectStore {
   CephContext *const cct;
-public:
 
+public:
+  CompressorRef compressor;
   // Block types in meta store
   // XATTR - object's xattr data
   // OMAP  - object's omap data
@@ -68,6 +70,7 @@ public:
 
 
   struct Object : public RefCountedObject {
+    CompressorRef* compressor;
     uint64_t data_len;          // "size" of object: boundry of l
     size_t used_blocks;         // number of datablocks used by object
     std::vector<uint64_t> data; // vector with ids of data blocks
@@ -84,7 +87,7 @@ public:
     friend void intrusive_ptr_add_ref(Object *o) { o->get(); }
     friend void intrusive_ptr_release(Object *o) { o->put(); }
 
-    Object() : data_len(0), used_blocks(0), omap_header(0), omaps(0), xattrs(0) {}
+    Object(CompressorRef* compressor_) : compressor(compressor_), data_len(0), used_blocks(0), omap_header(0), omaps(0), xattrs(0) {}
 
     int write(pmb_handle* store, coll_t& cid, const ghobject_t& oid, uint64_t tx_id,
         uint32_t data_blocksize, void *buf, size_t offset, size_t len);
@@ -220,7 +223,7 @@ public:
       RWLock::WLocker l(lock);
       auto result = object_hash.emplace(oid, ObjectRef());
       if (result.second)
-        object_map[oid] = result.first->second = new Object();
+        object_map[oid] = result.first->second = new Object(compressor);
       return result.first->second;
     }
 
@@ -248,7 +251,8 @@ public:
       return result;
     }
 
-    Collection() : lock("PMStore::Collection::lock"), id(0) { }
+    CompressorRef* compressor;
+    Collection(CompressorRef* compressor_) : lock("PMStore::Collection::lock"), id(0), compressor(compressor_) { }
   };
   typedef Collection::Ref CollectionRef;
 
@@ -374,7 +378,9 @@ public:
       used_bytes(0),
       data_blocksize(g_conf->pmstore_max_val_len),
       meta_blocksize(g_conf->pmstore_meta_max_val_len),
-      sharded(false) {}
+      sharded(false) {
+    compressor = Compressor::create(cct, "snappy");
+  }
   ~PMStore() { }
 
   virtual bool needs_journal() { return false; };

@@ -132,7 +132,7 @@ int PMStore::Object::touch(pmb_handle* store, coll_t& cid, const ghobject_t& oid
 {
   int result = 0;
   if (used_blocks == 0) {
-    pmb_pair kvp = {};
+    pmb_pair kvp = {0};
     bufferlist key;
     encode_key(key, cid, oid, 0);
     kvp.key = key.c_str();
@@ -162,13 +162,12 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
     requested_block = 1;
   }
 
-  pmb_pair kvp;
+  pmb_pair kvp = {0};
   uint8_t result;
   dout(5) << __func__ << " len: " << len << " req_block " << requested_block << " data.size()" << data.size() << dendl;
   if (data.size() < requested_block) {
     // add blocks to the object
     bufferlist write_key;
-    kvp = {};
 
     for(size_t i = data.size(); i < requested_block; i++) {
       kvp.obj_id = 0;
@@ -197,7 +196,7 @@ int PMStore::Object::truncate(pmb_handle* store, const coll_t& cid,
 
   if (len % data_blocksize != 0) {
     // truncate most likely is within boundary of single block, zero it
-    kvp = {};
+    kvp = {0};
     pmb_get(store, data[len / data_blocksize], &kvp);
 
     size_t off = len % data_blocksize;
@@ -235,7 +234,7 @@ err:
 int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, bufferlist& omap_header_bl)
 {
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
   bufferlist ohkey;
   encode_key_meta(ohkey, cid, oid, 'h');
   kvp.key = (void*) ohkey.c_str();
@@ -265,7 +264,7 @@ int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
 int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, void* buf, const size_t len)
 {
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
   bufferlist ohkey;
   encode_key_meta(ohkey, cid, oid, 'h');
   kvp.key = ohkey.c_str();
@@ -289,7 +288,7 @@ int PMStore::Object::write_omap_header(pmb_handle* store, const coll_t& cid,
 int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, map<string, bufferptr>& attrs) {
 
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
 
   if (xattrs != 0) {
     // populate xattrs with missing values
@@ -325,7 +324,8 @@ int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
   kvp.val = (void *) to_write.c_str();
   kvp.val_len = to_write.length();
 
-  dout(0) << __func__ << " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
+  dout(5) << __func__ << " cid: " << cid << " oid: " << oid << \
+    " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
 
   int result = pmb_tput_meta(store, tx_id, &kvp);
 
@@ -342,7 +342,7 @@ int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
 int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, void* buf, const size_t len)
 {
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
   bufferlist xkey;
   encode_key_meta(xkey, cid, oid, 'x');
   kvp.key = xkey.c_str();
@@ -350,7 +350,8 @@ int PMStore::Object::write_xattr(pmb_handle* store, const coll_t& cid,
   kvp.val = buf;
   kvp.val_len = len;
 
-  dout(0) << __func__ << " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
+  dout(5) << __func__ << " cid: " << cid << " oid: " << oid << \
+    " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
 
   int result = pmb_tput_meta(store, tx_id, &kvp);
 
@@ -369,7 +370,7 @@ int PMStore::Object::remove_omaps(pmb_handle* store, const uint64_t tx_id, const
     return -ENOENT;
   }
 
-  pmb_pair kvp {};
+  pmb_pair kvp = {0};
   int result = pmb_get(store, omaps, &kvp);
   if (result != PMB_OK) {
     dout(0) << __func__ << " ERROR removing omaps" << dendl;
@@ -422,7 +423,7 @@ int PMStore::Object::remove_xattr(pmb_handle* store, const uint64_t tx_id, const
     return -ENOENT;
   }
 
-  pmb_pair kvp {};
+  pmb_pair kvp = {0};
   int result = pmb_get(store, xattrs, &kvp);
   if (result != PMB_OK) {
     dout(0) << __func__ << " ERROR remove attr: " << xattr_key << " "
@@ -473,13 +474,15 @@ int PMStore::Object::remove_xattr(pmb_handle* store, const uint64_t tx_id, const
 int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, map<string, bufferlist>& aset) {
 
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
   bufferlist to_write;
   if (omaps != 0) {
     // populate omaps with missing omap values
     assert(pmb_get(store, omaps, &kvp) == PMB_OK);
+    bufferlist cmp;
+    cmp.append((const char*) kvp.val, kvp.val_len);
     bufferlist bl;
-    bl.append((const char*) kvp.val, kvp.val_len);
+    (*compressor)->decompress(cmp, bl);
     bufferlist::iterator bi = bl.begin();
     map<string,bufferlist> old_omaps;
     ::decode(old_omaps, bi);
@@ -496,25 +499,29 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 
   // encode map in single buffer
   ::encode(aset, to_write);
+  bufferlist compressed;
+  (*compressor)->compress(to_write, compressed);
 
   bufferlist okey;
   encode_key_meta(okey, cid, oid, 'o');
   kvp.obj_id = omaps;
   kvp.key = (void *) okey.c_str();
   kvp.key_len = okey.length();
-  kvp.val = (void *) to_write.c_str();
-  kvp.val_len = to_write.length();
+  kvp.val = (void *) compressed.c_str();
+  kvp.val_len = compressed.length();
+
+  dout(5) << __func__ << " cid: " << cid << " oid: " << oid << \
+    " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
 
   int result = pmb_tput_meta(store, tx_id, &kvp);
 
   if (result == PMB_OK) {
     omaps = kvp.obj_id;
   } else {
-    dout(0) << __func__ << " error writing omap: " << result << \
-      " key len: " << kvp.key_len << " val len: " << kvp.val_len  << dendl;
+    dout(0) << __func__ << " error writing omap: <<" << pmb_strerror(result) << \
+      " obj_id: " << kvp.obj_id << " data_nlba: " << kvp.key_len << \
+      " meta_nlba: " << kvp.val_len << dendl;
   }
-
-
 
   return result;
 }
@@ -522,7 +529,7 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
     const ghobject_t& oid, const uint64_t tx_id, void* buf, const size_t len)
 {
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
   bufferlist okey;
   encode_key_meta(okey, cid, oid, 'o');
   kvp.key = okey.c_str();
@@ -530,13 +537,17 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
   kvp.val = buf;
   kvp.val_len = len;
 
+  dout(5) << __func__ << " cid: " << cid << " oid: " << oid << \
+    " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
+
   int result = pmb_tput_meta(store, tx_id, &kvp);
 
   if (result == PMB_OK) {
     omaps = kvp.obj_id;
   } else {
-    dout(0) << __func__ << " error writing omap: " << result << \
-      " key len: " << kvp.key_len << " val len: " << kvp.val_len << dendl;
+    dout(0) << __func__ << " error writing omap: <<" << pmb_strerror(result) << \
+      " obj_id: " << kvp.obj_id << " data_nlba: " << kvp.key_len << \
+      " meta_nlba: " << kvp.val_len << dendl;
   }
 
   return result;
@@ -549,7 +560,7 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 int PMStore::Object::change_key(pmb_handle* store, const coll_t& newcid,
     const ghobject_t& newoid, const uint64_t tx_id) {
 
-  pmb_pair kvp = {};
+  pmb_pair kvp = {0};
 
   int result = 0;
 
@@ -590,7 +601,7 @@ int PMStore::Object::change_key(pmb_handle* store, const coll_t& newcid,
 }
 
 #undef dout_prefix
-#define dout_prefix *_dout << "pmstore(" << path << ") "
+#define dout_prefix *_dout << "pmstore("
 
 int PMStore::peek_journal_fsid(uuid_d *fsid)
 {
@@ -734,7 +745,7 @@ int PMStore::_load()
     if (r < 0) {
       return r;
     }
-    CollectionRef c(new Collection);
+    CollectionRef c(new Collection (&compressor));
     bufferlist::iterator p = cbl.begin();
     c->decode(p);
     coll_map[*q] = c;
@@ -1403,8 +1414,10 @@ int PMStore::omap_get(
   }
   if (o->omaps != 0) {
     assert(pmb_get(store, o->omaps, &kvp) == 0);
+    bufferlist cmp;
+    cmp.append((const char*) kvp.val, kvp.val_len);
     bufferlist bl;
-    bl.append((const char*) kvp.val, kvp.val_len);
+    compressor->decompress(cmp, bl);
     bufferlist::iterator p = bl.begin();
     ::decode(*out, p);
   }
@@ -1492,8 +1505,9 @@ int PMStore::omap_get_values(
   if (o->omaps != 0) {
     pmb_pair kvp;
     assert(pmb_get(store, o->omaps, &kvp) == PMB_OK);
-    bufferlist bl;
-    bl.append((const char*) kvp.val, kvp.val_len);
+    bufferlist cmp, bl;
+    cmp.append((const char*) kvp.val, kvp.val_len);
+    compressor->decompress(cmp, bl);
     bufferlist::iterator p = bl.begin();
     ::decode(*out, p);
   }
@@ -2497,7 +2511,7 @@ int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
   if (cp != coll_map.end()) {
     return -EEXIST;
   }
-  coll_map[cid].reset(new Collection);
+  coll_map[cid].reset(new Collection(&compressor));
 
   // TODO: add entry to the metad store
   return 0;
