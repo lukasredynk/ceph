@@ -50,7 +50,7 @@ bool operator>(const PMStore::CollectionRef& l,
   return (unsigned long)l.get() > (unsigned long)r.get();
 }
 
-int PMStore::Object::write(pmb_handle* store, coll_t& cid, const ghobject_t& oid,
+int PMStore::Object::write(pmb_handle* store, const coll_t& cid, const ghobject_t& oid,
     const uint64_t tx_id, const uint32_t data_blocksize, void* buf, size_t offset, size_t len)
 {
   size_t old_size = used_blocks;
@@ -127,7 +127,7 @@ int PMStore::Object::write(pmb_handle* store, coll_t& cid, const ghobject_t& oid
   return ((new_size - old_size) * data_blocksize);
 }
 
-int PMStore::Object::touch(pmb_handle* store, coll_t& cid, const ghobject_t& oid,
+int PMStore::Object::touch(pmb_handle* store, const coll_t& cid, const ghobject_t& oid,
     const uint64_t tx_id)
 {
   int result = 0;
@@ -479,10 +479,8 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
   if (omaps != 0) {
     // populate omaps with missing omap values
     assert(pmb_get(store, omaps, &kvp) == PMB_OK);
-    bufferlist cmp;
-    cmp.append((const char*) kvp.val, kvp.val_len);
     bufferlist bl;
-    (*compressor)->decompress(cmp, bl);
+    bl.append((const char*) kvp.val, kvp.val_len);
     bufferlist::iterator bi = bl.begin();
     map<string,bufferlist> old_omaps;
     ::decode(old_omaps, bi);
@@ -499,16 +497,14 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
 
   // encode map in single buffer
   ::encode(aset, to_write);
-  bufferlist compressed;
-  (*compressor)->compress(to_write, compressed);
 
   bufferlist okey;
   encode_key_meta(okey, cid, oid, 'o');
   kvp.obj_id = omaps;
   kvp.key = (void *) okey.c_str();
   kvp.key_len = okey.length();
-  kvp.val = (void *) compressed.c_str();
-  kvp.val_len = compressed.length();
+  kvp.val = (void *) to_write.c_str();
+  kvp.val_len = to_write.length();
 
   dout(5) << __func__ << " cid: " << cid << " oid: " << oid << \
     " key_len: " << kvp.key_len << " val_len: " << kvp.val_len << dendl;
@@ -518,9 +514,9 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
   if (result == PMB_OK) {
     omaps = kvp.obj_id;
   } else {
-    dout(0) << __func__ << " error writing omap: <<" << pmb_strerror(result) << \
-      " obj_id: " << kvp.obj_id << " data_nlba: " << kvp.key_len << \
-      " meta_nlba: " << kvp.val_len << dendl;
+    dout(0) << __func__ << " error writing omap: " << pmb_strerror(result) << \
+      " obj_id: " << kvp.obj_id << " key len: " << kvp.key_len << \
+      " val len: " << kvp.val_len << dendl;
   }
 
   return result;
@@ -545,9 +541,9 @@ int PMStore::Object::write_omap(pmb_handle* store, const coll_t& cid,
   if (result == PMB_OK) {
     omaps = kvp.obj_id;
   } else {
-    dout(0) << __func__ << " error writing omap: <<" << pmb_strerror(result) << \
-      " obj_id: " << kvp.obj_id << " data_nlba: " << kvp.key_len << \
-      " meta_nlba: " << kvp.val_len << dendl;
+    dout(0) << __func__ << " error writing omap: " << pmb_strerror(result) << \
+      " obj_id: " << kvp.obj_id << " key len: " << kvp.key_len << \
+      " val len: " << kvp.val_len << dendl;
   }
 
   return result;
@@ -601,7 +597,7 @@ int PMStore::Object::change_key(pmb_handle* store, const coll_t& newcid,
 }
 
 #undef dout_prefix
-#define dout_prefix *_dout << "pmstore("
+#define dout_prefix *_dout << "pmstore"
 
 int PMStore::peek_journal_fsid(uuid_d *fsid)
 {
@@ -745,7 +741,7 @@ int PMStore::_load()
     if (r < 0) {
       return r;
     }
-    CollectionRef c(new Collection (&compressor));
+    CollectionRef c(new Collection);
     bufferlist::iterator p = cbl.begin();
     c->decode(p);
     coll_map[*q] = c;
@@ -1025,7 +1021,7 @@ objectstore_perf_stat_t PMStore::get_cur_stats()
   return objectstore_perf_stat_t();
 }
 
-PMStore::CollectionRef PMStore::get_collection(coll_t cid)
+PMStore::CollectionRef PMStore::get_collection(const coll_t& cid)
 {
   RWLock::RLocker l(coll_lock);
   ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
@@ -1039,7 +1035,7 @@ PMStore::CollectionRef PMStore::get_collection(coll_t cid)
 // ---------------
 // read operations
 
-bool PMStore::exists(coll_t cid, const ghobject_t& oid)
+bool PMStore::exists(const coll_t& cid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
@@ -1055,7 +1051,7 @@ bool PMStore::exists(coll_t cid, const ghobject_t& oid)
 }
 
 int PMStore::stat(
-    coll_t cid,
+    const coll_t& cid,
     const ghobject_t& oid,
     struct stat *st,
     bool allow_eio)
@@ -1079,7 +1075,7 @@ int PMStore::stat(
 }
 
 int PMStore::read(
-    coll_t cid,
+    const coll_t& cid,
     const ghobject_t& oid,
     uint64_t offset,
     size_t len,
@@ -1202,7 +1198,7 @@ int PMStore::read(
 }
 
 // fixme
-int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
+int PMStore::fiemap(const coll_t& cid, const ghobject_t& oid,
 		     uint64_t offset, size_t len, bufferlist& bl)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << offset << "~"
@@ -1233,7 +1229,7 @@ int PMStore::fiemap(coll_t cid, const ghobject_t& oid,
   return 0;
 }
 
-int PMStore::getattr(coll_t cid, const ghobject_t& oid,
+int PMStore::getattr(const coll_t& cid, const ghobject_t& oid,
 		      const char *name, bufferptr& value)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << name << dendl;
@@ -1274,7 +1270,7 @@ int PMStore::getattr(coll_t cid, const ghobject_t& oid,
   return 0;
 }
 
-int PMStore::getattrs(coll_t cid, const ghobject_t& oid,
+int PMStore::getattrs(const coll_t& cid, const ghobject_t& oid,
 		       map<string,bufferptr>& aset)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -1318,7 +1314,7 @@ int PMStore::list_collections(vector<coll_t>& ls)
   return 0;
 }
 
-bool PMStore::collection_exists(coll_t cid)
+bool PMStore::collection_exists(const coll_t& cid)
 {
   dout(4) << __func__ << " " << cid << dendl;
 
@@ -1327,7 +1323,7 @@ bool PMStore::collection_exists(coll_t cid)
   return ret;
 }
 
-bool PMStore::collection_empty(coll_t cid)
+bool PMStore::collection_empty(const coll_t& cid)
 {
   dout(4) << __func__ << " " << cid << dendl;
 
@@ -1340,7 +1336,7 @@ bool PMStore::collection_empty(coll_t cid)
   return ret;
 }
 
-int PMStore::collection_list(coll_t cid, ghobject_t start, ghobject_t end,
+int PMStore::collection_list(const coll_t& cid, ghobject_t start, ghobject_t end,
                               bool sort_bitwise, int max,
                               vector<ghobject_t> *ls, ghobject_t *next)
 {
@@ -1374,7 +1370,7 @@ int PMStore::collection_list(coll_t cid, ghobject_t start, ghobject_t end,
 }
 
 int PMStore::omap_get(
-    coll_t cid,                   ///< [in] Collection containing oid
+    const coll_t& cid,                   ///< [in] Collection containing oid
     const ghobject_t &oid,        ///< [in] Object containing omap
     bufferlist *header,           ///< [out] omap header
     map<string, bufferlist> *out) ///< [out] Key to value map
@@ -1414,10 +1410,8 @@ int PMStore::omap_get(
   }
   if (o->omaps != 0) {
     assert(pmb_get(store, o->omaps, &kvp) == 0);
-    bufferlist cmp;
-    cmp.append((const char*) kvp.val, kvp.val_len);
     bufferlist bl;
-    compressor->decompress(cmp, bl);
+    bl.append((const char*) kvp.val, kvp.val_len);
     bufferlist::iterator p = bl.begin();
     ::decode(*out, p);
   }
@@ -1425,7 +1419,7 @@ int PMStore::omap_get(
 }
 
 int PMStore::omap_get_header(
-    coll_t cid,               ///< [in] Collection containing oid
+    const coll_t& cid,               ///< [in] Collection containing oid
     const ghobject_t &oid,    ///< [in] Object containing omap
     bufferlist *header,       ///< [out] omap header
     bool allow_eio)           ///< [in] don't assert on eio
@@ -1459,7 +1453,7 @@ int PMStore::omap_get_header(
 }
 
 int PMStore::omap_get_keys(
-    coll_t cid,             ///< [in] Collection containing oid
+    const coll_t& cid,             ///< [in] Collection containing oid
     const ghobject_t &oid,  ///< [in] Object containing omap
     set<string> *keys)      ///< [out] Keys defined on oid
 {
@@ -1484,7 +1478,7 @@ int PMStore::omap_get_keys(
 }
 
 int PMStore::omap_get_values(
-    coll_t cid,                    ///< [in] Collection containing oid
+    const coll_t& cid,                    ///< [in] Collection containing oid
     const ghobject_t &oid,       ///< [in] Object containing omap
     const set<string> &keys,     ///< [in] Keys to get
     map<string, bufferlist> *out ///< [out] Returned keys and values
@@ -1505,9 +1499,8 @@ int PMStore::omap_get_values(
   if (o->omaps != 0) {
     pmb_pair kvp;
     assert(pmb_get(store, o->omaps, &kvp) == PMB_OK);
-    bufferlist cmp, bl;
-    cmp.append((const char*) kvp.val, kvp.val_len);
-    compressor->decompress(cmp, bl);
+    bufferlist bl;
+    bl.append((const char*) kvp.val, kvp.val_len);
     bufferlist::iterator p = bl.begin();
     ::decode(*out, p);
   }
@@ -1515,7 +1508,7 @@ int PMStore::omap_get_values(
 }
 
 int PMStore::omap_check_keys(
-    coll_t cid,                ///< [in] Collection containing oid
+    const coll_t& cid,                ///< [in] Collection containing oid
     const ghobject_t &oid,   ///< [in] Object containing omap
     const set<string> &keys, ///< [in] Keys to check
     set<string> *out         ///< [out] Subset of keys defined on oid
@@ -1544,7 +1537,7 @@ int PMStore::omap_check_keys(
   return 0;
 }
 
-ObjectMap::ObjectMapIterator PMStore::get_omap_iterator(coll_t cid,
+ObjectMap::ObjectMapIterator PMStore::get_omap_iterator(const coll_t& cid,
 							 const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -1566,7 +1559,7 @@ ObjectMap::ObjectMapIterator PMStore::get_omap_iterator(coll_t cid,
 // write operations
 
 int PMStore::queue_transactions(Sequencer *osr,
-				 list<Transaction*>& tls,
+				 vector<Transaction>& tls,
 				 TrackedOpRef op,
 				 ThreadPool::TPHandle *handle)
 {
@@ -1605,13 +1598,13 @@ int PMStore::queue_transactions(Sequencer *osr,
 
   assert(tx_id != 0);
 
-  for (list<Transaction*>::iterator p = tls.begin(); p != tls.end(); ++p) {
+  for (auto p = tls.begin(); p != tls.end(); ++p) {
     // poke the TPHandle heartbeat just to exercise that code path
     if (handle) {
       handle->reset_tp_timeout();
     }
 
-    if(_do_transaction(**p, tx_id) < 0) {
+    if(_do_transaction(*p, tx_id) < 0) {
       pmb_tx_abort(store, tx_id);
       return -EIO; // check potential error codes
     }
@@ -2030,7 +2023,7 @@ int PMStore::_do_transaction(Transaction& t, const uint64_t tx_id)
   return 0;
 }
 
-int PMStore::_touch(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
+int PMStore::_touch(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
@@ -2044,7 +2037,7 @@ int PMStore::_touch(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
   return o->touch(store, cid, oid, tx_id);
 }
 
-int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
+int PMStore::_write(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid,
 		     uint64_t offset, size_t len, bufferlist& bl,
 		     uint32_t fadvise_flags)
 {
@@ -2070,7 +2063,7 @@ int PMStore::_write(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
   }
 }
 
-int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
+int PMStore::_zero(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid,
 		    uint64_t offset, size_t len)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << offset << "~"
@@ -2082,7 +2075,7 @@ int PMStore::_zero(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
   return result;
 }
 
-int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, uint64_t size)
+int PMStore::_truncate(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid, uint64_t size)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << size << dendl;
 
@@ -2107,7 +2100,7 @@ int PMStore::_truncate(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, 
   }
 }
 
-int PMStore::_remove(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
+int PMStore::_remove(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
@@ -2155,7 +2148,7 @@ int PMStore::_remove(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
   return 0;
 }
 
-int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
+int PMStore::_setattrs(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid,
 			map<string,bufferptr>& aset)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -2173,7 +2166,7 @@ int PMStore::_setattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid,
   return o->write_xattr(store, cid, oid, tx_id, aset);
 }
 
-int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, const char *name)
+int PMStore::_rmattr(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid, const char *name)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << name << dendl;
   CollectionRef c = get_collection(cid);
@@ -2189,7 +2182,7 @@ int PMStore::_rmattr(const uint64_t tx_id, coll_t cid, const ghobject_t& oid, co
   return o->remove_xattr(store, tx_id, name);
 }
 
-int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
+int PMStore::_rmattrs(const uint64_t tx_id, const coll_t& cid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
   CollectionRef c = get_collection(cid);
@@ -2210,7 +2203,7 @@ int PMStore::_rmattrs(const uint64_t tx_id, coll_t cid, const ghobject_t& oid)
   return 0;
 }
 
-int PMStore::_clone(const uint64_t tx_id, coll_t cid,
+int PMStore::_clone(const uint64_t tx_id, const coll_t& cid,
     const ghobject_t& oldoid, const ghobject_t& newoid)
 {
   dout(4) << __func__ << " " << cid << " " << oldoid
@@ -2298,7 +2291,7 @@ int PMStore::_clone(const uint64_t tx_id, coll_t cid,
   return result;
 }
 
-int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
+int PMStore::_clone_range(const uint64_t tx_id, const coll_t& cid,
                           const ghobject_t& oldoid, const ghobject_t& newoid,
                           uint64_t srcoff, uint64_t len, uint64_t dstoff)
 {
@@ -2389,7 +2382,7 @@ int PMStore::_clone_range(const uint64_t tx_id, coll_t cid,
   return 0;
 }
 
-int PMStore::_omap_clear(const uint64_t tx_id, coll_t cid, const ghobject_t &oid)
+int PMStore::_omap_clear(const uint64_t tx_id, const coll_t& cid, const ghobject_t &oid)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
 
@@ -2416,7 +2409,7 @@ int PMStore::_omap_clear(const uint64_t tx_id, coll_t cid, const ghobject_t &oid
   return 0;
 }
 
-int PMStore::_omap_setkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
+int PMStore::_omap_setkeys(const uint64_t tx_id, const coll_t& cid, const ghobject_t &oid,
 			    map<string, bufferlist> &aset)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -2436,7 +2429,7 @@ int PMStore::_omap_setkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &o
   return result;
 }
 
-int PMStore::_omap_rmkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
+int PMStore::_omap_rmkeys(const uint64_t tx_id, const coll_t& cid, const ghobject_t &oid,
 			   const set<string> &keys)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -2456,7 +2449,7 @@ int PMStore::_omap_rmkeys(const uint64_t tx_id, coll_t cid, const ghobject_t &oi
   return result;
 }
 
-int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
+int PMStore::_omap_rmkeyrange(const uint64_t tx_id, const coll_t& cid, const ghobject_t &oid,
 			       const string& first, const string& last)
 {
   dout(4) << __func__ << " " << cid << " " << oid << " " << first
@@ -2484,7 +2477,7 @@ int PMStore::_omap_rmkeyrange(const uint64_t tx_id, coll_t cid, const ghobject_t
   return o->remove_omaps(store, tx_id, omap_keys_to_remove);
 }
 
-int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t &oid,
+int PMStore::_omap_setheader(const uint64_t tx_id, const coll_t& cid, const ghobject_t &oid,
 			      bufferlist &bl)
 {
   dout(4) << __func__ << " " << cid << " " << oid << dendl;
@@ -2502,7 +2495,7 @@ int PMStore::_omap_setheader(const uint64_t tx_id, coll_t cid, const ghobject_t 
   return  o->write_omap_header(store, cid, oid, tx_id, bl);
 }
 
-int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
+int PMStore::_create_collection(const uint64_t tx_id, const coll_t& cid)
 {
   dout(4) << __func__ << " " << cid << dendl;
 
@@ -2511,13 +2504,13 @@ int PMStore::_create_collection(const uint64_t tx_id, coll_t cid)
   if (cp != coll_map.end()) {
     return -EEXIST;
   }
-  coll_map[cid].reset(new Collection(&compressor));
+  coll_map[cid].reset(new Collection);
 
   // TODO: add entry to the metad store
   return 0;
 }
 
-int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
+int PMStore::_destroy_collection(const uint64_t tx_id, const coll_t& cid)
 {
   dout(4) << __func__ << " " << cid << dendl;
 
@@ -2570,7 +2563,7 @@ int PMStore::_destroy_collection(const uint64_t tx_id, coll_t cid)
   return 0;
 }
 
-int PMStore::_collection_add(const uint64_t tx_id, coll_t cid, coll_t ocid, const ghobject_t& oid)
+int PMStore::_collection_add(const uint64_t tx_id, const coll_t& cid, const coll_t& ocid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << cid << " " << ocid << " " << oid << dendl;
 
@@ -2597,9 +2590,8 @@ int PMStore::_collection_add(const uint64_t tx_id, coll_t cid, coll_t ocid, cons
   return 0;
 }
 
-int PMStore::_collection_move_rename(const uint64_t tx_id,
-                                      coll_t oldcid, const ghobject_t& oldoid,
-				      coll_t cid, const ghobject_t& oid)
+int PMStore::_collection_move_rename(const uint64_t tx_id, const coll_t& oldcid,
+                                     const ghobject_t& oldoid, const coll_t& cid, const ghobject_t& oid)
 {
   dout(4) << __func__ << " " << oldcid << " " << oldoid << " -> "
 	   << cid << " " << oid << dendl;
@@ -2653,7 +2645,7 @@ int PMStore::_collection_move_rename(const uint64_t tx_id,
   return r;
 }
 
-int PMStore::_split_collection(const uint64_t tx_id, coll_t cid, uint32_t bits,
+int PMStore::_split_collection(const uint64_t tx_id, const coll_t& cid, uint32_t bits,
                                uint32_t match, coll_t dest)
 {
   dout(4) << __func__ << " " << cid << " " << bits << " " << match << " "
