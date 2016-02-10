@@ -1053,18 +1053,18 @@ OPTION(journal_aio, OPT_BOOL, true)
 OPTION(journal_force_aio, OPT_BOOL, false)
 
 // PMStore: opts for data store
-OPTION(pmstore_max_key_len, OPT_U32, 4072)
-OPTION(pmstore_max_val_len, OPT_U32,  1024U * 1024)
-OPTION(pmstore_size, OPT_U64, 25UL * 1024 * 1024 * 1024)
+OPTION(pmstore_max_key_len, OPT_U32, 4064)
+OPTION(pmstore_max_val_len, OPT_U32,  512U * 1024)
+OPTION(pmstore_size, OPT_U64, 45UL * 1024 * 1024 * 1024)
 OPTION(pmstore_tx_slots, OPT_U32, 4)
 // available options: "sync", "async", "nosync", "thsync"
 OPTION(pmstore_sync, OPT_STR, "thsync")
 
-// PMStore: opts for store with XATTRS/OMAP
+// PMStore: opts for store with XATTRS
 // each entry aligned to 4kb page
-OPTION(pmstore_meta_max_key_len, OPT_U32, 4072)
-OPTION(pmstore_meta_max_val_len, OPT_U32, 65536)
-OPTION(pmstore_meta_size, OPT_U64, 7UL * 1024 * 1024 * 1024)
+OPTION(pmstore_meta_max_key_len, OPT_U32, 4064)
+OPTION(pmstore_meta_max_val_len, OPT_U32, 32U * 1024)
+OPTION(pmstore_meta_size, OPT_U64, 3UL * 1024 * 1024 * 1024)
 
 // max bytes to search ahead in journal searching for corruption
 OPTION(journal_max_corrupt_search, OPT_U64, 10<<20)
